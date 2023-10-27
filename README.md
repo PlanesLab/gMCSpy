@@ -6,7 +6,7 @@ The models must come from the [cobrapy](https://opencobra.github.io/cobrapy/) pa
 
 ## Documentation
 
-[Documentation](https://cjrodriguez98.github.io/GMCS.py/)
+[Documentation](https://planeslab.github.io/gMCSpy/)
 
 ## Installation
 
