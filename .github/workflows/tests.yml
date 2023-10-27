@@ -1,0 +1,41 @@
+name: Python Package Using Anaconda
+
+on: [push]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        miniconda-version: "latest"
+        activate-environment: test
+        python-version: 3.9
+    - name: Bash
+      shell: bash -el {0}
+      run: |
+        conda install -c conda-forge PySCIPOpt=4.3.0
+        pip install pytest
+        pip install pytest-cov
+        pip install pytest-mock
+        pip install cobra
+        pip install scipy
+        pip install tqdm
+        pip install cplex
+        pip install gurobipy
+        pip install beartype
+        pip install joblib
+        cd test
+        pytest -v tests_ProblemDefinitions.py --cov=./ --cov-report=xml
+        ls
+    - name: Report test-coverage to DeepSource
+      shell: bash -el {0}
+      run: | 
+        export DEEPSOURCE_DSN=https://740cc3c1c96d44908f8559b50290cc35@deepsource.io
+        # Install the CLI
+        curl https://deepsource.io/cli | sh
+
+        ls
+        # Send the report to DeepSource
+        ./bin/deepsource report --analyzer test-coverage --key python --value-file test/coverage.xml

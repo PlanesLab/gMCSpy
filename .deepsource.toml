@@ -1,0 +1,13 @@
+version = 1
+
+[[analyzers]]
+name = "python"
+
+[[analyzers]]
+name = "test-coverage"
+enabled = true
+
+test_patterns = [
+  "test/**",
+  "test_*.py"
+]
