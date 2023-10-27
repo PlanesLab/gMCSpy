@@ -18,7 +18,7 @@ Install gmcspy from pip
   
 ## Quick Start
 
-Using HUMAN GEM (v14) from [here](https://github.com/SysBioChalmers/Human-GEM/releases). 
+Using HUMAN GEM (v16) from [here](https://github.com/SysBioChalmers/Human-GEM/releases). 
 
 ```python
 #Read the model 
@@ -35,7 +35,7 @@ To calculate all the GMCS of length 3 or less, with a maximum of 200 GMCS and us
 #Calculate the genetic minimal cut sets
 from gMCSpy import calculateGeneMCS
 
-mcs = calculateGeneMCS(
+calculateGeneMCS(
         cobraModel=model,
         maxKOLength=3,
         maxNumberGMCS=200,
@@ -55,5 +55,6 @@ mcs = calculateGeneMCS(
 
 - Carlos Rodriguez
 - Naroa Barrena 
+- Danel Olaverri-Mendizabal
 - Luis Valcarcel
 - Francisco Planes
