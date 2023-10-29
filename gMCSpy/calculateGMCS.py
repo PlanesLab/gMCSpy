@@ -549,7 +549,7 @@ def __simplifyGMatrix(gMatrixDict: defaultdict, __addToDict) -> defaultdict:
                     # If the intersection is not empty, then the interventions are related
                     # Check if the intersection is already a single gene intervention
                     if len(intersection) == 1:
-                       if element not in singleGeneInterventions and element not in gMatrixDict.keys():
+                       if intersection not in singleGeneInterventions and intersection not in gMatrixDict.keys():
                            # Intersection must not be a key of the dictionary
                             if intersection not in simpG.keys():
                                  # Add the intersection as a key of the dictionary
