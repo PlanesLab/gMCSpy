@@ -440,12 +440,6 @@ def buildGMatrix(
 
     gMatrixDict = defaultdict(list)
 
-    for k in cobraModel.genes:
-        __addToDict(gMatrixDict, [k.id], [])
-
-    for key, value in gMatrixDict.items():
-        gMatrixDict[key] = []
-
     GPRs = [r.gpr for r in cobraModel.reactions]
     modelReactions = cobraModel.reactions
     modelGenes = [g.id for g in cobraModel.genes]
@@ -507,35 +501,71 @@ def buildGMatrix(
     for key, value in gMatrixDict.items():
         if len(key) <= maxKOLength:
             filteredDict[key] = value
+            
+    simpG = __simplifyGMatrix(filteredDict, __addToDict)
 
-    [relationships, numberNewGenesByKO] = __relatedRows(filteredDict, __addToDict)
+    [relationships, numberNewGenesByKO] = __relatedRows(simpG, __addToDict)
     pbar.update(1)
 
-    nonSingleKOs = [key for key in relationships.keys() if len(key) > 1]
-    if nonSingleKOs:
-        nonSingleKOs = frozenset.union(*nonSingleKOs)
-        compactDict = filteredDict.copy()
-        for key, value in filteredDict.items():
-            if len(key) < 2:
-                if not value:
-                    if not (key.issubset(nonSingleKOs)):
-                        compactDict.pop(key)
-                        if key in relationships:
-                            relationships.pop(key)
-    else:
-        compactDict = filteredDict.copy()
     # Step 6: Build G matrix
-    gMatrix = __createSparseMatrix(compactDict, modelReactions)
+    gMatrix = __createSparseMatrix(simpG, modelReactions)
     pbar.update(1)
     # scipy.sparse.save_npz(cobraModelName + '_gMatrix.npz', gMatrix)
     gObject = {
         "gMatrix": gMatrix,
-        "gDict": compactDict,
+        "gDict": simpG,
         "relationships": relationships,
         "numberNewGenesByKO": numberNewGenesByKO,
     }
     return gObject
 
+def __simplifyGMatrix(gMatrixDict: defaultdict, __addToDict) -> defaultdict:
+    """**Simplify the G matrix**
+
+    Analyze the G matrix to find the rows that are related to each other.
+    If a common gene is more perturbations, then the perturbations are related to each other.
+    And should be an individual perturbation.
+
+    :param gMatrixDict: The dictionary with the perturbations.
+
+    :return: The simplified G matrix.
+    """
+    
+    # Empty dictionary to store the simplified G matrix
+    simpG = gMatrixDict.copy()
+    
+    # Get the interventions compossed of one gene
+    singleGeneInterventions = [gene for gene in gMatrixDict.keys() if len(gene) == 1]
+    
+    # Get the interventions compossed of more than one gene
+    multipleGeneInterventions = [gene for gene in gMatrixDict.keys() if len(gene) > 1]
+    
+    # Intersect each intervention with the other interventions to find common elements
+    for interventionA in multipleGeneInterventions:
+        for interventionB in multipleGeneInterventions:
+            if interventionA != interventionB:
+                intersection = interventionA.intersection(interventionB)
+                if intersection:
+                    # If the intersection is not empty, then the interventions are related
+                    # Check if the intersection is already a single gene intervention
+                    if len(intersection) == 1:
+                       if element not in singleGeneInterventions and element not in gMatrixDict.keys():
+                           # Intersection must not be a key of the dictionary
+                            if intersection not in simpG.keys():
+                                 # Add the intersection as a key of the dictionary
+                                __addToDict(simpG, intersection, [])
+                                simpG[intersection] = []
+                    else:
+                        for element in intersection:
+                            if element not in singleGeneInterventions and element not in gMatrixDict.keys():
+                                # Intersection must not be a key of the dictionary
+                                if intersection not in simpG.keys():
+                                     # Add the intersection as a key of the dictionary
+                                    __addToDict(simpG, intersection, [])
+                                    simpG[intersection] = []
+                                
+
+    return simpG
 
 def __createSparseMatrix(gMatrixDict, modelReactions):
     """**Build the G matrix**

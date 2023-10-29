@@ -820,9 +820,8 @@ def buildDictionaryMCSGeneProblem(
     objectiveVars = [
         vIndex["zp"][i]
         for i in range(0, len(possibleKOs))
-        if len(possibleKOs[i]) == 1
     ]
-    problem.addObjective(objectiveVars, np.ones(len(objectiveVars)), sense="minimize")
+    problem.addObjective(objectiveVars, list(numberNewGenesByKO.values()), sense="minimize")
 
     if forceLength:
         constraintName = "forceLength"
@@ -1165,10 +1164,9 @@ def buildDictionaryMCSGeneTargetedProblem(
     # Build objective
     objectiveVars = [
         vIndex["zp"][i]
-        for i in range(0, numberOfPossibleKO)
-        if numberNewGenesByKO[possibleKOs[i]] == 1
+        for i in range(0, len(possibleKOs))
     ]
-    problem.addObjective(objectiveVars, np.ones(len(objectiveVars)), sense="minimize")
+    problem.addObjective(objectiveVars, list(numberNewGenesByKO.values()), sense="minimize")
 
     if forceLength:
         constraintName = "forceLength"
