@@ -236,7 +236,6 @@ class MinimalCutSetProblem:
                         constraintLength = len(currentSolution) - 1 
                         if mergeSolutions:
                             solutionInformation["solution"] = frozenset().union(*solutionInformation["solution"])
-                            constraintLength = len(solutionInformation["solution"]) - 1
                             
                         problemInterpreted.linear_constraints.add(
                         lin_expr=[

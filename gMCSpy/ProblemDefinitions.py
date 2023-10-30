@@ -826,7 +826,7 @@ def buildDictionaryMCSGeneProblem(
     if forceLength:
         constraintName = "forceLength"
         vars = objectiveVars
-        coefs = np.ones(len(objectiveVars))
+        coefs = list(numberNewGenesByKO.values())
         problem.addConstraint(constraintName, vars, coefs, "L", 1)
 
     constraintName = "forceBioCons_constraint"
