@@ -1,7 +1,7 @@
 Examples
 ===========================
 
-Here we present a set of example of how to use gMCSpy with genome-scale metabolic models (GEMS). 
+Here we present a set of examples of how to use gMCSpy with genome-scale metabolic models (GEMS). 
 
 .. toctree::
    :maxdepth: 2
@@ -11,7 +11,7 @@ Here we present a set of example of how to use gMCSpy with genome-scale metaboli
 Calculating the Genetic Minimal Cut Sets (gMCS) of E. coli core GEM
 ---------------------------------------------------------------------------
 
-To replicate this example, make sure you have completed the `installation guide <installation.rst>`_, the E. coli core model can be downloaded from the `E. coli core Model <http://bigg.ucsd.edu/models/e_coli_core>`_. The following code-block shows how to calculate the gMCS of the E. coli core model.
+To replicate this example, make sure you have completed the `installation guide <installation.rst>`_, The E. coli core model can be downloaded from the `E. coli core Model <http://bigg.ucsd.edu/models/e_coli_core>`_. The following code-block shows how to calculate the gMCS of the E. coli core model.
 
 .. code-block:: python
 
@@ -79,7 +79,7 @@ To replicate this example, make sure you have completed the `installation guide 
 Calculating the Nutrient Genetic Minimal Cut Sets (ngMCS) of E. coli core GEM
 ------------------------------------------------------------------------------------
 
-The concept of nutrient-genetic Minimal Cut Sets is a novel analysis tool in the study of GEMs. These sets are crucial for determining the nutrients and genes necessary to sustain the production of biomass within a system. When the parameter "isNutrient" is set to true, it includes all exchange reactions as genes. Exchange reactions represent the uptake or secretion of metabolites, we only include uptakes in this analysis, mirroring the intake of nutrients and the release of products by an organism. By identifying the minimal cut sets, researchers can pinpoint the combinations of nutrients and genetic elements that are necessary for the synthesis of biomass, shedding light on the interplay between genetics and metabolism. This insight is valuable for understanding the requirements of an organism and has applications in biotechnology and medicine.
+The concept of nutrient-genetic Minimal Cut Sets (ngMCSs) is a novel analysis tool in the study of GEMs. These sets are crucial for determining the nutrients and genes necessary to sustain the production of biomass within a system. When the parameter “isNutrient” is set to true, it includes the removal of exchange reactions as possible interventions. Exchange reactions represent the uptake or secretion of metabolites. We only include uptakes in this analysis, mirroring the intake of nutrients and the release of products by an organism. By identifying ngMCSs, researchers can pinpoint the combinations of nutrients and genetic elements that are necessary for the synthesis of biomass, shedding light on the interplay between genetics and metabolism. This insight is valuable for understanding the requirements of an organism and has applications in biotechnology and medicine. 
 The E. coli core model can be downloaded from the `E. coli core Model <http://bigg.ucsd.edu/models/e_coli_core>`_.
 
 .. code-block:: python
@@ -229,7 +229,7 @@ To validate that the actual solutions are minimal cut sets we have include a fun
 |
 | 
 
-Advance Example, Calculating gMCS of Human-GEM with custom parameters
+Advance Example: Calculating gMCS of Human-GEM with custom parameters
 ----------------------------------------------------------------------
 
 In this example we will calculate all gMCSs up to length 4 of the `Human-GEM <https://github.com/SysBioChalmers/Human-GEM/releases>`_, using cplex and increasing the time limit to 1e5.
