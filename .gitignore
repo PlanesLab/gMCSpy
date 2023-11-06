@@ -49,3 +49,13 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 test.py
+
+# PyBuilder
+.pypirc
+dist/
+*.egg-info
+
+# data
+data/
+*.py
+*.ipynb
