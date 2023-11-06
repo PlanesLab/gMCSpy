@@ -14,7 +14,7 @@ gMCSpy is compatible with the COBRApy package, which is a popular Python library
 gMCSpy can read and write metabolic models in all formats supported by COBRApy, such as SBML, JSON, and MAT. 
 
 
-**Authors: Carlos Rodríguez, Naroa Barrena, Luis Valcárcel, and Francisco J. Planes** 
+**Authors: Carlos Rodríguez, Naroa Barrena, Danel Olaverri-Mendizabal, Idoia Ochoa, Luis Valcárcel, and Francisco J. Planes** 
 
 
 
