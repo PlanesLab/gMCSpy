@@ -25,11 +25,11 @@ Using HUMAN GEM (v16) from [here](https://github.com/SysBioChalmers/Human-GEM/re
 from pathlib import Path
 from cobra.io import load_matlab_model
 
-mini_mat_path = Path(".") / "./data/Human-GEM14.mat"
+mini_mat_path = Path(".") / "./data/Human-GEM16.mat"
 model = load_matlab_model(str(mini_mat_path.resolve()))
 ```
 
-To calculate all the GMCS of length 3 or less, with a maximum of 200 GMCS and using Gurobi as the solver.
+To calculate all the GMCS of length 3 or less; using gurobi as solver
 
 ```python
 #Calculate the genetic minimal cut sets
@@ -38,7 +38,6 @@ from gMCSpy import calculateGeneMCS
 calculateGeneMCS(
         cobraModel=model,
         maxKOLength=3,
-        maxNumberGMCS=200,
         solver='gurobi'
 )
 ```
@@ -56,5 +55,6 @@ calculateGeneMCS(
 - Carlos Rodriguez
 - Naroa Barrena 
 - Danel Olaverri-Mendizabal
+- Idoia Ochoa
 - Luis Valcarcel
 - Francisco Planes

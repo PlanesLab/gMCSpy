@@ -1,4 +1,4 @@
-from gMCSpy.Utilities import setSolver
+from .Utilities import setSolver
 from .ProblemInterpreters import cplexProblemInterpreter
 from .ProblemInterpreters import gurobiProblemInterpreter
 from .ProblemInterpreters import scipProblemInterpreter
