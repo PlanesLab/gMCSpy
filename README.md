@@ -18,7 +18,43 @@ Install gmcspy from pip
   
 ## Quick Start
 
+### E. coli core
+
+```python
+#Read the model 
+from pathlib import Path
+from cobra.io import load_model
+model = load_model("textbook")
+```
+
+To calculate all the GMCS of length 3 or less; using gurobi as solver
+
+```python
+#Calculate the genetic minimal cut sets
+from gMCSpy import calculateGeneMCS
+
+calculateGeneMCS(
+        cobraModel=model,
+        maxKOLength=3,
+        solver='gurobi'
+)
+
+### Using CPLEX
+
+calculateGeneMCS(
+        cobraModel=model,
+        maxKOLength=3,
+        solver='cplex'
+)
+```
+
+### Human-GEM (*Requires License Activation: CPLEX and Gurobi)
 Using HUMAN GEM (v16) from [here](https://github.com/SysBioChalmers/Human-GEM/releases). 
+```bash
+mkdir data
+curl -o data/Human-GEM16.mat --location --remote-header-name https://github.com/SysBioChalmers/Human-GEM/raw/v1.16.0/model/Human-GEM.mat
+
+```
 
 ```python
 #Read the model 
@@ -52,9 +88,9 @@ calculateGeneMCS(
 
 ## Authors
 
-- Carlos Rodriguez
+- Carlos J. Rodriguez
 - Naroa Barrena 
 - Danel Olaverri-Mendizabal
 - Idoia Ochoa
-- Luis Valcarcel
-- Francisco Planes
+- Luis V. Valcárcel
+- Francisco J. Planes
