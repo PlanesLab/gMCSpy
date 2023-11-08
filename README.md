@@ -1,4 +1,6 @@
-# gMCSpy
+# gMCSpy    
+# ![Python versions](https://img.shields.io/pypi/pyversions/gMCSpy?logo=python) ![Downloads](https://img.shields.io/pypi/dm/gMCSpy) ![Tests](https://github.com/PlanesLab/gMCSpy/actions/workflows/tests.yml/badge.svg)
+
 
 gMCSpy is a python package for the calculation of Genetic Minimal Cut sets (GMCS). In simple terms the idea is to take a metabolic model and calculate the genetic vulnerabilities that will render the biomass production impossible. This is done through a Mixed-Integer Linear problem (MILP) formultion and the use of a linear solver.  
 The models must come from the [cobrapy](https://opencobra.github.io/cobrapy/) package and a linear solver must be installed. The package has been design to be used with [Gurobi](https://www.gurobi.com/),  [CPLEX](https://www.ibm.com/analytics/cplex-optimizer) and [SCIP](https://scipopt.org/#scipoptsuite).
