@@ -1,5 +1,6 @@
 .. meta::
-   :description: google-site-verification: XAVEwjTjhotOHuQDSJKqwWTR1AGqwel2lCMHWnabMKI
+   :google-site-verification: XAVEwjTjhotOHuQDSJKqwWTR1AGqwel2lCMHWnabMKI
+
 
 =============================================
 Genetic Minimal Cut Sets in python (gMCSpy)
