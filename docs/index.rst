@@ -1,7 +1,5 @@
-.. raw :: html
-   <head>
-   <meta name="google-site-verification" content="XAVEwjTjhotOHuQDSJKqwWTR1AGqwel2lCMHWnabMKI" />
-   </head>
+.. meta::
+   :description: google-site-verification: XAVEwjTjhotOHuQDSJKqwWTR1AGqwel2lCMHWnabMKI
 
 =============================================
 Genetic Minimal Cut Sets in python (gMCSpy)
