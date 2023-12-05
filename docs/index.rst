@@ -1,3 +1,8 @@
+.. raw :: html
+   <head>
+   <meta name="google-site-verification" content="XAVEwjTjhotOHuQDSJKqwWTR1AGqwel2lCMHWnabMKI" />
+   </head>
+
 =============================================
 Genetic Minimal Cut Sets in python (gMCSpy)
 =============================================
