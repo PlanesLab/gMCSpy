@@ -26,7 +26,6 @@ gMCSpy can read and write metabolic models in all formats supported by COBRApy, 
 
     This sample documentation was generated on |today|.
 
-
 Quickstart
 ==========
 
@@ -39,6 +38,11 @@ Quickstart
 2. Check our tutorial to learn how to use gMCSpy:
 
    **gMCS of E. coli core** :doc:`examples` 
+
+Github repository
+=================
+
+https://github.com/PlanesLab/gMCSpy
 
 .. toctree::
    :maxdepth: 1
