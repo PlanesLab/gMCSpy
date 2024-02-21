@@ -380,7 +380,8 @@ def calculateGeneMCS(cobraModel, **kwargs):
         for order, ko in solutionDict.items():
             reactions_log_list = []
             for gene in ko['solution']:
-                reactions = [r.id for r in cobraModel.genes.get_by_id(gene).reactions]
+                reactsIndices = gDict[frozenset([gene])]
+                reactions = [cobraModel.reactions[r].id for r in reactsIndices]
                 reactions_log_list.append(reactions)
             reactions = ','.join(list(set().union(*reactions_log_list)))
             ko_log = ','.join(list(ko['solution']))         
