@@ -1,7 +1,0 @@
-source_ENSEMBL,target_ENSEMBL,interaction
-g5,g2,1
-g7,g2,1
-g7,g3,-1
-g6,g4,1
-g7,g4,1
-g8,g5,1
