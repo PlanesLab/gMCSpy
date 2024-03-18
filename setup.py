@@ -2,13 +2,13 @@ from distutils.core import setup
 setup(
   name = 'gMCSpy',         
   packages = ['gMCSpy'],   
-  version = '1.0',      
+  version = '1.0.1',      
   license='MIT',        
   description = 'gMCSpy is a python package for the calculation of Genetic Minimal Cut sets (GMCS). In simple terms the idea is to take a metabolic model and calculate the genetic vulnerabilities that will render the biomass production impossible. This is done through a Mixed-Integer Linear problem (MILP) formultion and the use of a linear solver.',   
   author = 'Carlos Javier Rodriguez',                   
   author_email = 'cjrodriguezf@unav.es',      
   url = 'https://github.com/PlanesLab/gMCSpy',   
-  download_url = 'https://github.com/PlanesLab/gMCSpy/archive/refs/tags/v.1.0.tar.gz',    
+  download_url = 'https://github.com/PlanesLab/gMCSpy/archive/refs/tags/v.1.0.1.tar.gz',    
   keywords = ['gMCS', 'Genetic Minimal Cut Sets', 'Gurobi', 'CPLEX'],   
   install_requires=[            
           'cobra',
