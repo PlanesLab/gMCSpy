@@ -9,7 +9,7 @@ initCobraToolbox(0)
 
 
 
-model_array = {'e_coli_core', 'yeast8','iML1515', 'iJN1463', 'Human-GEM-1.16.0_CultureMedia', 'Human-GEM-1.16.0_raw', 'iEK1008'};
+model_array = {'e_coli_core', 'yeast8','iML1515', 'iJN1463', 'Human-GEM-1.16.0_CultureMedia', 'Human-GEM-1.16.0_raw', 'Recon3D'};
 separate_isoform_array = {'', '', '', '', '', '', ''};
 
 %model_array = {'yeast8'};

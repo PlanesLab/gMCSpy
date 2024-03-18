@@ -53,9 +53,9 @@ mini_mat_path = (Path(".") / "/scratch/a905383/gmcspy/data/e_coli_core.mat")
 model_ecoli = load_matlab_model(str(mini_mat_path.resolve()))
 model_ecoli.id = "ecoli_core"
 
-mini_mat_path = (Path(".") / "/scratch/a905383/gmcspy/data/iEK1008.mat")
-model_iEK = load_matlab_model(str(mini_mat_path.resolve()))
-model_iEK.id = "iEK1008"
+mini_mat_path = (Path(".") / "/scratch/a905383/gmcspy/data/Recon3D.mat")
+model_recon3d = load_matlab_model(str(mini_mat_path.resolve()))
+model_recon3d.id = "recon3D"
 
 mini_mat_path = (Path(".") / "/scratch/a905383/gmcspy/data/iJN1463.mat")
 model_iJN = load_matlab_model(str(mini_mat_path.resolve()))
@@ -125,23 +125,14 @@ models = [
           model_iML,
           model_iJN,
           model_Human16Media,
-          model_iEK,
-         ]
-
-models = [
-          model_iJN
+          model_recon3d,
          ]
 
 numIter = 10
 
 solvers = [
            'cplex',
-        ]
-
-res = benchSuite(models, solvers, numIter, logger)
-
-solvers = [
-           'gurobi',
+           'gurobi'
         ]
 
 res = benchSuite(models, solvers, numIter, logger)

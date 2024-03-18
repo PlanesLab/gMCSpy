@@ -40,9 +40,9 @@ def calculateMCS(
         - **MAX_LENGTH_MCS:** Maximum length of MCS to be found. (i.e. number of reactions in the MCS)
 
     Optional arguments:
-        - **rxnToForce:** List of reactions to be considered in the MCS problem. The list is expected to be of reaction names. Default value is an empty list, which means that all reactions will be considered.
+        - **rxnToForce:** List of reactions to be considered in the MCS problem. The list is expected to be of reaction names. Default value is an empty list, which means that all reactions will be considered. e.g. rxnToForce = ["R1", "R2", "R3"] will only consider reactions R1, R2 and R3 as possible intervention points. Only ["R1"], ["R2"], ["R3"], ["R1", "R2"], ["R1", "R3"], ["R2", "R3"] and ["R1", "R2", "R3"] could be solutions.
 
-        - **rxnToKnockOut:** List of reactions that you want to be part of the MCS solutions. The list is expected to be of reaction names.
+        - **rxnToKnockOut:** List of reactions that you want to be part of the MCS solutions. The list is expected to be of reaction names. Default value is an empty list, which means that no reactions will be forced to be part of the MCS solutions. e.g. rxnToKnockOut = ["R1", "R2", "R3"] will force the MCS solutions to contain reactions R1, R2 and R3. Only ["R1", "R2", "R3"] could be a solution.
         
         - **targetB:** Desired activity level of the metabolic task to be disrupted. Default value is 1e- 3.
 

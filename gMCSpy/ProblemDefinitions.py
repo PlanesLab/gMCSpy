@@ -895,7 +895,7 @@ def buildDictionaryMCSGeneTargetedProblem(
     # Alpha. Used to relate the lower bound of v variables with z variables
     ALPHA = 1
 
-    numberOfPossibleKO = matrixG.shape[0]
+    n = matrixG.shape[0]
     possibleKOs = list(gDict.keys())
 
     if relationships is not None:
@@ -925,25 +925,6 @@ def buildDictionaryMCSGeneTargetedProblem(
     # Target vector
     t = np.zeros(reactions)
     t[indexC] = 1
-
-    if geneSubset:
-        if verbose > 0:
-            print("The solution space is made up by these genes: " + str(geneSubset))
-
-        # Find the interventions that contain the genes in the geneSubset
-
-        interventionsToKeep = []
-        for gene in geneSubset:
-            for intervention in possibleKOs:
-                if gene.issubset(intervention):
-                    interventionsToKeep.append(intervention)
-
-        interventionsIndex = [
-            possibleKOs.index(intervention) for intervention in interventionsToKeep
-        ]
-        interventionsIndex = sorted(list(set(interventionsIndex)))
-        matrixG = matrixG[interventionsIndex, :]
-        n = matrixG.shape[0]
 
     targetKOIndex = np.zeros(len(possibleKOs))
     for gene in targetKOs:
