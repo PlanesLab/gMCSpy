@@ -19,12 +19,25 @@ def checkGMCS(
     problem = buildDictionaryFBAWithDeletions(model, geneSolution, isoFormSeparator)
     problem.setSolver("gurobi")
     gurobi_default_params = {
-        "Threads": 2,
+        "Threads": 1,
         "OutputFlag": 0
         }
     [problemInterpreted, _] = problem.interpretProblem(parameters=gurobi_default_params)
     problemInterpreted.optimize()
-    cutSetValue = problemInterpreted.ObjVal
+    try:
+        cutSetValue = problemInterpreted.ObjVal
+    except:
+        checkDict = {
+        "isGMCS": 'infesible',
+        "solution": geneSolution,
+        "isCutSet": 'infesible',
+        "cutSetValue": 'infesible',
+        "isMinimal": 'infesible',
+        "setGeneTested": 'infesible',
+        "objVals": 'infesible',
+        }
+        return checkDict
+
     if problemInterpreted.ObjVal > 1e-6:
         isCutSet = False
     else:

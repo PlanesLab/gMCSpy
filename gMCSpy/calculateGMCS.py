@@ -161,7 +161,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
                 gDict.pop(key)
 
         gMatrix = __createSparseMatrix(gDict, cobraModel.reactions)
-        [relationships, numberNewGenesByKO] = __relatedRows(gDict, __mergeIsforms(isoformSeparator))
+        [relationships, numberNewGenesByKO] = __relatedRows(gDict, mergeIsforms(isoformSeparator))
    
     if saveGMatrix:        
         gMatrix_Strings = []
@@ -377,11 +377,12 @@ def calculateGeneMCS(cobraModel, **kwargs):
         loggingSolutions = initiateLogger(solutionFileName, solutionPath + solutionFileName)
         loggingSolutions.info('gene,reactions')
         geneSolutionList = []
+        
         for order, ko in solutionDict.items():
             reactions_log_list = []
             for gene in ko['solution']:
-                reactions = [r.id for r in cobraModel.genes.get_by_id(gene).reactions]
-                reactions_log_list.append(reactions)
+                reactions = gDict[frozenset([gene])]
+                reactions_log_list.append([cobraModel.reactions[x].id for x in reactions])
             reactions = ','.join(list(set().union(*reactions_log_list)))
             ko_log = ','.join(list(ko['solution']))         
             loggingSolutions.info(f'[{ko_log}]:[{reactions}]')
@@ -430,86 +431,34 @@ def buildGMatrix(
 
 
     """
-    pbar = tqdm(total=5, desc="Building G matrix")
-    if name is None:
-        cobraModelName = cobraModel.id
-    else:
-        cobraModelName = name
+    
+    maxKOLength = kwargs.get('maxKOLength', 3)
+    dictManager = mergeIsforms(isoformSeparator)
+        
+    modelReactions = [reaction.id for reaction in cobraModel.reactions]
+    # create a dictionary with the gpr rules associated to each reaction to get a unique list of gprs
+    gprDict = getGPRDict(cobraModel)
+    gDict = {}
+    
+    # Analyze the GPRs to find the perturbations that stop the reactions
+    for key, value in tqdm(gprDict.items()):
+            calculate_GPR_MCS(gDict, value['gpr'], value['reactions'], dictManager)
 
-    __addToDict = __mergeIsforms(isoformSeparator)
 
-    gMatrixDict = defaultdict(list)
-
-    GPRs = [r.gpr for r in cobraModel.reactions]
-    modelReactions = cobraModel.reactions
-    modelGenes = [g.id for g in cobraModel.genes]
-
-    # Check if GPRs are unique
-    stringGPRs = [gpr.to_string() for gpr in GPRs]
-
-    # Get unique GPRs index and select them from GPRs
-    [uniqueStrings, uniqueGPRsIndex] = np.unique(stringGPRs, return_index=True)
-    uniqueGPRs = [GPRs[i] for i in uniqueGPRsIndex]
-
-    [rxnGeneMatrix, briefing] = buildRxnGeneMat(uniqueGPRs, modelReactions, modelGenes)
-
-    if verbose > 0:
-        print("Summary of reaction-gene relationships:")
-        print("-----------------------------------------")
-        print("Number of reactions with no gene: " + str(briefing["nRxnZeroGenes"]))
-        print("Number of reactions with one gene: " + str(briefing["nRxnOneGene"]))
-        print(
-            "Number of reactions with only OR relationships: "
-            + str(briefing["nRxnOnlyOr"])
-        )
-        print(
-            "Number of reactions with only AND relationships: "
-            + str(briefing["nRxnOnlyAnd"])
-        )
-        print(
-            "Number of reactions with both OR and AND relationships: "
-            + str(briefing["nRxnOrAnd"])
-        )
-
-    # Step 1: Reactions with one gene
-    # --------------------------------
-    # F1 is the matrix of genes involved in the control of a reaction. (Only one gene per reaction)
-    __computeSinglePerturbations(
-        gMatrixDict, modelGenes, rxnGeneMatrix, briefing, __addToDict, verbose
-    )
-    pbar.update(1)
-
-    # Step 2: Reactions with more than one gene and only OR relationships
-    # --------------------------------------------------------------------
-    __computeORPerturbations(
-        gMatrixDict, modelGenes, rxnGeneMatrix, briefing, __addToDict, verbose
-    )
-    pbar.update(1)
-
-    # Step 3: Reactions with more than one gene and only AND relationships
-    __computeANDPerturbations(
-        gMatrixDict, modelGenes, rxnGeneMatrix, briefing, __addToDict, verbose
-    )
-    pbar.update(1)
-
-    # Step 4: Reactions with more than one gene and both AND and OR relationships
-    gpr, mcs = calculateMCSForGPRs(briefing, isoformSeparator, verbose, **kwargs)
-    __insertMCSIntoDict(gMatrixDict, briefing, gpr, mcs, __addToDict)
-
-    # Step 5: Remove intervations longer than the maximum length
-    filteredDict = defaultdict(list)
-    for key, value in gMatrixDict.items():
-        if len(key) <= maxKOLength:
-            filteredDict[key] = value
+    # Filter out the interventions that are larger than the maxKOLength
+    filteredGDict = gDict.copy()
+    for key in gDict.keys():
+        if len(key) > maxKOLength:
+            filteredGDict.pop(key)
             
-    simpG = __simplifyGMatrix(filteredDict, __addToDict)
+    newGDict = transformReactionIdsIntoIndexes(filteredGDict, modelReactions)
+            
+    simpG = __simplifyGMatrix(newGDict, dictManager)
 
-    [relationships, numberNewGenesByKO] = __relatedRows(simpG, __addToDict)
-    pbar.update(1)
-
-    # Step 6: Build G matrix
+    [relationships, numberNewGenesByKO] = __relatedRows(simpG, dictManager)
+    
     gMatrix = __createSparseMatrix(simpG, modelReactions)
-    pbar.update(1)
+
     # scipy.sparse.save_npz(cobraModelName + '_gMatrix.npz', gMatrix)
     gObject = {
         "gMatrix": gMatrix,
@@ -518,6 +467,46 @@ def buildGMatrix(
         "numberNewGenesByKO": numberNewGenesByKO,
     }
     return gObject
+
+def calculate_GPR_MCS(gDict, gpr, reactions, addToDict):
+    # get the genes from the gpr rule
+    stringGPR = gpr.to_string()
+    genes = [gene for gene in gpr.genes]
+    if len(genes) == 1:
+        key=frozenset(genes)
+        [addToDict(gDict, key, reaction) for reaction in reactions]
+    # Only and
+    elif bool(re.search(' and ', stringGPR) and not re.search(' or ', stringGPR)):
+        # Only one gene needs to be KO to stop the reaction
+        for gene in genes:
+            key=frozenset([gene])
+            [addToDict(gDict, key, reaction) for reaction in reactions]
+
+    # Only or
+    elif bool(re.search(' or ', stringGPR) and not re.search(' and ', stringGPR)):
+        # All genes need to be KO to stop the reaction
+        key=frozenset(genes)
+        [addToDict(gDict, key, reaction) for reaction in reactions]  
+    
+    # And and or
+    else:
+        treeGenes, model = parseGPRToModel(stringGPR, 'gpr', None)
+        solutionDict = calculateMCS(model, MAX_LENGTH_MCS=5, MAX_MCS=1e6, rxnSubset=list(treeGenes))
+        for _, data in solutionDict.items():
+            key = frozenset(data["solution"])
+            [addToDict(gDict, key, reaction) for reaction in reactions]
+                   
+def getGPRDict(model):
+    gpr_dict = {}
+    for reaction in model.reactions:
+        gpr = reaction.gpr.to_string()
+        if gpr in gpr_dict:
+            gpr_dict[gpr]['reactions'].append(reaction.id)
+        elif gpr == '':
+            pass
+        else:
+            gpr_dict[gpr] = {'reactions': [reaction.id], 'genes': [gene.id for gene in reaction.genes], 'gpr': reaction.gpr}
+    return gpr_dict
 
 def __simplifyGMatrix(gMatrixDict: defaultdict, __addToDict) -> defaultdict:
     """**Simplify the G matrix**
@@ -583,7 +572,6 @@ def __createSparseMatrix(gMatrixDict, modelReactions):
     gMatrix = gMatrix.tocsc()
     return gMatrix
 
-
 def __relatedRows(gMatrixDict: defaultdict, __addToDict) -> List:
     """**Find the rows that are related to each other**
 
@@ -615,23 +603,6 @@ def __relatedRows(gMatrixDict: defaultdict, __addToDict) -> List:
             numberNewGenesByKO[key] = len(key) - len(key2)
         gMatrixDict[key] = list(set(value))
     return [relationships, numberNewGenesByKO]
-
-
-def __insertMCSIntoDict(
-    gMatrixDict: defaultdict, briefing: dict, gpr: List, mcs: List, __addToDict
-) -> None:
-    """**Insert the MCSs into the perturbations**
-
-    :param gMatrixDict: The dictionary with the perturbations.
-    :param briefing: The dictionary with the information of the GPRs.
-    :param gpr: The list of GPRs corresponding to a MCS.
-    :param mcs: The list of MCSs corresponding to a GPR.
-    """
-    for gpr, mcs in zip(gpr, mcs):
-        for key, value in briefing["gprDict"].items():
-            if value == gpr:
-                __addToDict(gMatrixDict, mcs, key)
-
 
 def calculateMCSForGPRs(
     briefing: dict, isoformSeparator: str, verbose: int = 0, **kwargs
@@ -677,90 +648,6 @@ def calculateMCSForGPRs(
             mcs.append(data["solution"])
     return gpr, mcs
 
-
-def __computeANDPerturbations(
-    gMatrixDict: defaultdict,
-    genes: List,
-    rxnGeneMatrix: scipy.sparse.csr_matrix,
-    briefing: dict,
-    __addToDict,
-    verbose: int = 0,
-) -> None:
-    """
-    **Compute the perturbations for GPR with only AND relationships**
-
-    :param gMatrixDict: The dictionary to store the perturbations, a.k.a. knockouts.
-    :param genes: The list of genes in the model.
-    :param rxnGeneMatrix: The matrix of reactions and genes relationships.
-    :param briefing: The dictionary with the indices of the reactions with one gene.
-    :param verbose: The verbosity level."""
-
-    F3 = rxnGeneMatrix[briefing["indexRxnOnlyAnd"], :]
-    for react in range(F3.shape[0]):
-        for gene in F3[react, :].indices:
-            __addToDict(gMatrixDict, [genes[gene]], briefing["indexRxnOnlyAnd"][react])
-    if verbose > 0:
-        print("Step 3 completed. Done with reactions with and relationships.")
-
-
-def __computeORPerturbations(
-    gMatrixDict: defaultdict,
-    genes: List,
-    rxnGeneMatrix: scipy.sparse.csr_matrix,
-    briefing: dict,
-    __addToDict,
-    verbose: int = 0,
-) -> None:
-    """
-    **Compute the perturbations for GPR with only OR relationships**
-
-    :param gMatrixDict: The dictionary to store the perturbations, a.k.a. knockouts.
-    :param genes: The list of genes in the model.
-    :param rxnGeneMatrix: The matrix of reactions and genes relationships.
-    :param briefing: The dictionary with the indices of the reactions with one gene.
-    :param verbose: The verbosity level."""
-
-    F2 = rxnGeneMatrix[briefing["indexRxnOnlyOr"], :]
-    for react in range(F2.shape[0]):
-        key = [genes[gene] for gene in F2[react, :].indices]
-        __addToDict(gMatrixDict, key, briefing["indexRxnOnlyOr"][react])
-
-    if verbose > 0:
-        print("Step 2 completed. Done with reactions with or relationships.")
-
-
-def __computeSinglePerturbations(
-    gMatrixDict: defaultdict,
-    genes: List,
-    rxnGeneMatrix: scipy.sparse.csr_matrix,
-    briefing: dict,
-    __addToDict,
-    verbose: int = 0,
-) -> None:
-    """
-    **Compute the perturbations for reactions with one gene**
-
-    :param gMatrixDict: The dictionary to store the perturbations, a.k.a. knockouts.
-    :param genes: The list of genes in the model.
-    :param rxnGeneMatrix: The matrix of reactions and genes relationships.
-    :param briefing: The dictionary with the indices of the reactions with one gene.
-    :param verbose: The verbosity level.
-
-    """
-    F1 = rxnGeneMatrix[briefing["indexRxnOneGene"], :]
-    # Get the non-zero elements of F1, the indices are not helpful since the matrix have been previously spliced\docs\setup-analysis
-    _, geneIndex = F1.nonzero()
-    # Get the genes involved in the control of a reaction
-    # skipcq
-    [
-        __addToDict(gMatrixDict, [genes[gene]], reaction)
-        for gene, reaction in zip(geneIndex, briefing["indexRxnOneGene"])
-    ]
-
-    if verbose > 0:
-        print("Step 1 completed. Done with reactions with one gene.")
-
-
 @beartype
 def parseGPRToModel(stringGPR: str, reactionName, isoformSeparator):
     """**Parse a GPR string to a cobra model**
@@ -792,7 +679,6 @@ def parseGPRToModel(stringGPR: str, reactionName, isoformSeparator):
     model = buildReactionFromBranch(expr=gprTree.body, model=model, level=level)
 
     return [treeGenes, model]
-
 
 @beartype
 def buildReactionFromBranch(
@@ -906,7 +792,7 @@ def buildReactionFromBranch(
     return model
 
 
-def __mergeIsforms(isoformSeparator):
+def mergeIsforms(isoformSeparator):
     if isoformSeparator is None:
 
         def __addToDict(dict: defaultdict, key: List, value) -> None:
@@ -923,7 +809,7 @@ def __mergeIsforms(isoformSeparator):
             :param value: Any value can be stored in the dictionary, we store the corresponding index of the reactions perturbed. (any)
 
             """
-            key = frozenset(key)
+            #key = frozenset(key)
             if key in dict:
                 dict[key].append(value)
             else:
@@ -935,7 +821,7 @@ def __mergeIsforms(isoformSeparator):
             key = [name.split(isoformSeparator)[0] for name in key]
             key = frozenset(key)
             if key in dict:
-                dict[key].append(value)
+               dict[key].append(value)
             else:
                 dict[key] = [value]
 
@@ -1061,6 +947,14 @@ def initiateLogger(name, log_file, level=logging.INFO):
 
     return logger
 
+def transformReactionIdsIntoIndexes(gDict, reactionList):
+    newGDict = defaultdict(list)
+    for key, value in gDict.items():
+        reactionIndexes = []
+        for reaction in value:
+            reactionIndexes.append(reactionList.index(reaction))
+        newGDict[key] = reactionIndexes
+    return newGDict
 
 
 
