@@ -25,7 +25,7 @@ Before using gmcspy, we highly recommend to create a sepparate environment and t
 ```
  - SCIP: https://scipopt.org/index.php#download
  ```bash
-  pip install PySCIPOpt
+  conda install -c conda-forge PySCIPOpt=4.3.0
 ```
 
 ## Installation
