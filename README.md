@@ -10,6 +10,24 @@ The models must come from the [cobrapy](https://opencobra.github.io/cobrapy/) pa
 
 [Documentation](https://planeslab.github.io/gMCSpy/)
 
+## Requirements
+
+Before using gmcspy, we highly recommend to create a sepparate environment and to have installed at least one MILP solver. You can install them using the following instructions:
+ - Gurobi:  
+ ```bash
+  pip install gurobipy
+```
+ - CPLEX: https://www.ibm.com/docs/en/icos/20.1.0?topic=cplex-setting-up-python-api
+ ```bash
+  pip install cplex
+  # or 
+  python setup.py install # in cplex folder
+```
+ - SCIP: https://scipopt.org/index.php#download
+ ```bash
+  pip install PySCIPOpt
+```
+
 ## Installation
 
 Install gmcspy from pip

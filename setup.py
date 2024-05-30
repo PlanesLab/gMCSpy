@@ -15,9 +15,7 @@ setup(
           'beartype',
           'scipy',
           'tqdm',
-          'joblib',
-          'gurobipy',
-          'cplex'
+          'joblib'
           
       ],
   classifiers=[
