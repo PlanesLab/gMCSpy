@@ -18,3 +18,11 @@ from .Validations import checkGMCS
 from .Validations import checkGMCSParallel
 
 from .OptimizationProblem import OptimizationProblem
+
+
+from .calculateSyntheticDosageGMCS import calculateGMIS
+from .calculateSyntheticDosageGMCS import calculateRegNetGMatrix
+
+from .ProblemDefinitions import buildDictionaryRegNetwork
+
+from .calculateReadjustment import calculateReadjustment

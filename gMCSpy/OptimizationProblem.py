@@ -136,6 +136,24 @@ class OptimizationProblem:
         self.constraints[constraintName]["coefficients"] = coefficients
         self.constraints[constraintName]["sense"] = sense
         self.constraints[constraintName]["rhs"] = rhs
+        
+    def modifyVariable(self, index, lb=None, ub=None, vtype=None, relatedTo=None):
+        if lb is not None:
+            self.variables[index]["lb"] = lb
+        if ub is not None:
+            self.variables[index]["ub"] = ub
+        if vtype is not None:
+            self.variables[index]["vtype"] = vtype
+        if relatedTo is not None:
+            self.variables[index]["relatedTo"] = relatedTo
+            
+    def modifyObjective(self, variables=None, coefficients=None, sense=None):
+        if variables is not None:
+            self.objective["variables"] = variables
+        if coefficients is not None:
+            self.objective["coefficients"] = coefficients
+        if sense is not None:
+            self.sense = sense
 
     def getProblem(self):
         return {

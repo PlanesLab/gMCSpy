@@ -1,5 +1,6 @@
 from .ProblemDefinitions import cobra
 from .ProblemDefinitions import buildDictionaryFBAWithDeletions
+from .ProblemDefinitions import buildDictionaryReactionsFBAWithDeletions
 from .MinimalCutSetClass import logging
 from .MinimalCutSetClass import tqdm
 from. MinimalCutSetClass import prepareModelNutrientGeneMCS
@@ -81,6 +82,80 @@ def checkGMCS(
     }
     return checkDict
 
+def checkFromReaction(
+    genes: frozenset,
+    gDict: dict,
+    model: cobra.Model
+):
+    reactions = []
+
+    for key in gDict.keys():
+        if key.issubset(genes):
+            [reactions.append(reaction) for reaction in gDict[key]]
+
+    reactions = list(set(reactions))
+    reactions = [model.reactions[reaction].id for reaction in reactions]
+    problem = buildDictionaryReactionsFBAWithDeletions(model, reactions)
+    problem.setSolver("gurobi")
+    gurobi_default_params = {
+        "Threads": 1,
+        "OutputFlag": 0
+        }
+    [problemInterpreted, _] = problem.interpretProblem(parameters=gurobi_default_params)
+    problemInterpreted.optimize()
+    cutSetValue = problemInterpreted.ObjVal
+    if problemInterpreted.ObjVal > 1e-6:
+        isCutSet = False
+    else:
+        isCutSet = True
+
+    isMinimal = []
+    setGeneTested = []
+    objVals = []
+    for i in range(len(genes)):
+        ko = list(genes)
+        if len(ko) > 1:
+            ko.remove(ko[i])
+            # get the reactions for the new gene set
+            reactions = []
+            setKo = frozenset(ko)
+            if setKo in gDict:
+                [reactions.append(reaction) for reaction in gDict[setKo]]
+            else:
+                for key in gDict.keys():
+                    if key.issubset(setKo):
+                        [reactions.append(reaction) for reaction in gDict[key]]
+            if len(reactions) == 0:
+                continue
+            problem = buildDictionaryReactionsFBAWithDeletions(model, reactions)
+            problem.setSolver("gurobi")
+            [problemInterpreted, interface] = problem.interpretProblem(parameters=gurobi_default_params)
+            problemInterpreted.optimize()
+            objVals.append(problemInterpreted.ObjVal)
+            if problemInterpreted.ObjVal > 0:
+                isMinimal.append(True)
+            else:
+                isMinimal.append(False)
+
+        elif len(ko) == 1 and isCutSet:
+            isMinimal.append(True)
+            objVals.append(0)
+
+        setGeneTested.append(ko)
+
+    areAllMinimal = all(isMinimal)
+    both = [isCutSet, areAllMinimal]
+    isGMCS = all(both)
+    checkDict = {
+        "isGMCS": isGMCS,
+        "solution": genes,
+        "isCutSet": isCutSet,
+        "cutSetValue": cutSetValue,
+        "isMinimal": isMinimal,
+        "setGeneTested": setGeneTested,
+        "objVals": objVals,
+    }
+    return checkDict
 
 # Build parrallel function to check all solutions in a list
 

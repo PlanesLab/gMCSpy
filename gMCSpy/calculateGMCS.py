@@ -13,7 +13,7 @@ from .Validations import checkGMCSParallel
 from .calculateMCS import calculateMCS
 
 import re
-from ast import And, BoolOp, Or, Name
+from ast import And, BoolOp, Or, Name, parse
 
 from collections import defaultdict
 import warnings
@@ -121,9 +121,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
     kwargs.pop("timeLimit", None)
 
     numWorkers = kwargs.get("numWorkers", 0)
-    
-
-    
+       
     if isNutrient:
         cobraModel = prepareModelNutrientGeneMCS(cobraModel, exchangeReactions)
 
@@ -160,8 +158,8 @@ def calculateGeneMCS(cobraModel, **kwargs):
             if not key.issubset(geneSet):
                 gDict.pop(key)
 
-        gMatrix = __createSparseMatrix(gDict, cobraModel.reactions)
-        [relationships, numberNewGenesByKO] = __relatedRows(gDict, mergeIsforms(isoformSeparator))
+        gMatrix = createSparseMatrix(gDict, cobraModel.reactions)
+        [relationships, numberNewGenesByKO] = relatedRows(gDict, mergeIsforms(isoformSeparator))
    
     if saveGMatrix:        
         gMatrix_Strings = []
@@ -403,9 +401,6 @@ def calculateGeneMCS(cobraModel, **kwargs):
     handler.close()
     return solutionDict
 
-
-
-
 def buildGMatrix(
     cobraModel: cobra.core.Model,
     maxKOLength: int = 1e6,
@@ -452,12 +447,13 @@ def buildGMatrix(
             filteredGDict.pop(key)
             
     newGDict = transformReactionIdsIntoIndexes(filteredGDict, modelReactions)
-            
-    simpG = __simplifyGMatrix(newGDict, dictManager)
-
-    [relationships, numberNewGenesByKO] = __relatedRows(simpG, dictManager)
     
-    gMatrix = __createSparseMatrix(simpG, modelReactions)
+            
+    simpG = simplifyGMatrix(newGDict, dictManager)
+
+    [relationships, numberNewGenesByKO] = relatedRows(simpG, dictManager)
+    
+    gMatrix = createSparseMatrix(simpG, modelReactions)
 
     # scipy.sparse.save_npz(cobraModelName + '_gMatrix.npz', gMatrix)
     gObject = {
@@ -508,7 +504,7 @@ def getGPRDict(model):
             gpr_dict[gpr] = {'reactions': [reaction.id], 'genes': [gene.id for gene in reaction.genes], 'gpr': reaction.gpr}
     return gpr_dict
 
-def __simplifyGMatrix(gMatrixDict: defaultdict, __addToDict) -> defaultdict:
+def simplifyGMatrix(gMatrixDict: defaultdict, __addToDict) -> defaultdict:
     """**Simplify the G matrix**
 
     Analyze the G matrix to find the rows that are related to each other.
@@ -556,7 +552,7 @@ def __simplifyGMatrix(gMatrixDict: defaultdict, __addToDict) -> defaultdict:
 
     return simpG
 
-def __createSparseMatrix(gMatrixDict, modelReactions):
+def createSparseMatrix(gMatrixDict, modelReactions):
     """**Build the G matrix**
 
     Create sparse matrix from the dictionary with the perturbations.
@@ -572,7 +568,7 @@ def __createSparseMatrix(gMatrixDict, modelReactions):
     gMatrix = gMatrix.tocsc()
     return gMatrix
 
-def __relatedRows(gMatrixDict: defaultdict, __addToDict) -> List:
+def relatedRows(gMatrixDict: defaultdict, __addToDict) -> List:
     """**Find the rows that are related to each other**
 
     If a row is a subset of another row,

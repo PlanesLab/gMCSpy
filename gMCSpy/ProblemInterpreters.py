@@ -324,5 +324,8 @@ def scipProblemInterpreter(
     if verbose > 0:
         print("Objective added")
     
+    model.setHeuristics(3)
     model.hideOutput()
+    #model.setBoolParam("constraints/countsols/collect", True)
+    #model.setPresolve(1)
     return model

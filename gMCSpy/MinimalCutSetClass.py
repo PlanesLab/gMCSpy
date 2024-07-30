@@ -164,6 +164,29 @@ class MinimalCutSetProblem:
                             for i in solutionIndex
                         ]
                         names = [var.VarName for var in currentSolution]
+                        # To correctly prevent the same solution from being found again, we add a constraint that the sum of the variables in the solution must be less than the total number of variables of order 1 in the solution
+                        if mergeSolutions:
+                            geneSolutions = [solutionVariableNames[i] for i in solutionIndex]
+                            mergedSolutions = frozenset().union(*geneSolutions)
+                            solutionLength = len(mergedSolutions)
+                            if len(solutionIndex) <= solutionLength:
+                                pass
+                            else:
+                                auxGeneList = []
+                                for gene in geneSolutions:
+                                    if len(gene) == 1:
+                                        auxGeneList.append(gene)
+                                newSolutionIndex = [solutionIndex[geneSolutions.index(gene)] for gene in auxGeneList]
+                                if len(auxGeneList) == solutionLength:
+                                    currentSolution = [problemInterpreted.getVars()[solutionVariableIndices[i]] for i in newSolutionIndex]
+                                else: 
+                                    pass
+                                    #print("Possible minimality occurance")
+                                    #print("Individual solutions: ", geneSolutions)
+                                    #print("Individual genes found: ", auxGeneList)
+                                    #print('##################################')
+                            
+                            
                         newConExpr = interface.LinExpr(np.ones(len(currentSolution)), currentSolution)
                         problemInterpreted.addLConstr(
                             newConExpr,
@@ -230,10 +253,33 @@ class MinimalCutSetProblem:
                         names = problemInterpreted.variables.get_names(currentSolution)
                         keyName = "order" + str(len(solutionIndex)) + "_" + str(solutionCountPerLength)
                         solutionCountPerLength = solutionCountPerLength + 1
+                        
+                         # To correctly prevent the same solution from being found again, we add a constraint that the sum of the variables in the solution must be less than the total number of variables of order 1 in the solution
+                        if mergeSolutions:
+                            geneSolutions = [solutionVariableNames[i] for i in solutionIndex]
+                            mergedSolutions = frozenset().union(*geneSolutions)
+                            solutionLength = len(mergedSolutions)
+                            if len(solutionIndex) <= solutionLength:
+                                pass
+                            else:
+                                auxGeneList = []
+                                for gene in geneSolutions:
+                                    if len(gene) == 1:
+                                        auxGeneList.append(gene)
+                                newSolutionIndex = [solutionIndex[geneSolutions.index(gene)] for gene in auxGeneList]
+                                if len(auxGeneList) == solutionLength:
+                                    currentSolution = [solutionVariableIndices[i] for i in newSolutionIndex]
+                                else: 
+                                    print("Possible minimality occurance")
+                                    print("Individual solutions: ", geneSolutions)
+                                    print("Individual genes found: ", auxGeneList)
+                                    print('##################################')
+                        
                         currentSolutionNames = [solutionVariableNames[i] for i in solutionIndex]
                         solutionInformation = {}
                         solutionInformation["solution"] = currentSolutionNames
                         constraintLength = len(currentSolution) - 1 
+                        
                         if mergeSolutions:
                             solutionInformation["solution"] = frozenset().union(*solutionInformation["solution"])
                             
