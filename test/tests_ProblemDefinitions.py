@@ -76,6 +76,7 @@ class TestCalculations:
     # Define the list of solvers to test
     solvers = ["cplex", "gurobi"]
     
+    
     # test that the function returns the correct solution for the toy model using different solvers
     @pytest.mark.parametrize("solver", solvers)
     def test_GeneralityOfSolvers(self, solver):
@@ -140,7 +141,8 @@ class TestCalculations:
                 falsePositive = True
         assert falsePositive == False
         assert allResults == len(expectedMCS)
-        
+  
+    
     # Parametrize the tests with different solvers
     @pytest.mark.parametrize("solver", solvers)
     def test_calculate_mcs_rxn_knockout_multiple_times(self, solver):
@@ -157,7 +159,6 @@ class TestCalculations:
             assert falsePositive == False
         
     # Parametrize the tests with different solvers
-    '''
     @pytest.mark.parametrize("solver", solvers)
     def test_calculate_mcs_rxn_knockout_multiple(self, solver):
         toy_model = gMCSpy.Utilities.createToyModel()
@@ -173,7 +174,7 @@ class TestCalculations:
                 falsePositive = True
         assert falsePositive == False
         assert allResults == len(expectedMCS)
-    '''    
+      
         
     # Parametrize the tests with different solvers
     @pytest.mark.parametrize("solver", solvers)
@@ -189,3 +190,4 @@ class TestCalculations:
                 if solution == frozenset(gtSolution):
                    count += 1
         assert count == len(groundTruth)
+    

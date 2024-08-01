@@ -341,7 +341,7 @@ def buildDictionaryMCSTargetedProblem(
         [matrixS, scipy.sparse.lil_matrix(np.zeros((mUpdated, 1)))]
     )
     auxK = scipy.sparse.hstack([matrixK, scipy.sparse.lil_matrix(np.zeros((n, 1)))])
-    auxT = scipy.sparse.hstack([scipy.sparse.lil_matrix(-t), targetB])
+    auxT = scipy.sparse.hstack([scipy.sparse.lil_matrix(-t), scipy.sparse.lil_matrix(targetB)])
     A[np.ix_(cIndex["linearCombination"], vIndex["x"])] = scipy.sparse.vstack(
         [auxS, auxK, auxT]
     )
