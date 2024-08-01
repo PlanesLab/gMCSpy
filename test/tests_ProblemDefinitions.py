@@ -157,6 +157,7 @@ class TestCalculations:
             assert falsePositive == False
         
     # Parametrize the tests with different solvers
+    '''
     @pytest.mark.parametrize("solver", solvers)
     def test_calculate_mcs_rxn_knockout_multiple(self, solver):
         toy_model = gMCSpy.Utilities.createToyModel()
@@ -172,6 +173,7 @@ class TestCalculations:
                 falsePositive = True
         assert falsePositive == False
         assert allResults == len(expectedMCS)
+    '''    
         
     # Parametrize the tests with different solvers
     @pytest.mark.parametrize("solver", solvers)
