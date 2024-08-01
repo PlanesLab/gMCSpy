@@ -6,26 +6,49 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: conda-incubator/setup-miniconda@v3.0.1
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v3.0.1
       with:
         miniconda-version: "latest"
         activate-environment: test
-        python-version: 3.9
-    - name: Bash
-      shell: bash -el {0}
+        python-version: 3.10
+
+    - name: Initialize Conda
+      shell: bash -l {0}
+      run: conda init bash
+
+    - name: Python version
+      shell: bash -l {0}
+      run: |
+        conda activate test
+        python --version
+
+    - name: Install dependencies
+      shell: bash -l {0}
       run: |
         conda install -c conda-forge PySCIPOpt=4.3.0
-        pip install pytest
-        pip install pytest-cov
-        pip install pytest-mock
-        pip install cobra
-        pip install scipy
-        pip install tqdm
+        conda install -c conda-forge libexpat
+        pip install pytest 
+        pip install pytest-cov 
+        pip install pytest-mock 
+        pip install cobra 
+        pip install scipy 
+        pip install tqdm 
         pip install cplex
         pip install gurobipy
         pip install beartype
         pip install joblib
+        pip install bidict
+
+    - name: Run tests
+      shell: bash -l {0}
+      run: |
+        cd gMCSpy
+        ls
+        cd ../
         cd test
         pytest -v tests_ProblemDefinitions.py --cov=./ --cov-report=xml
         ls
