@@ -1,0 +1,285 @@
+model,algorithm,solver,time,size,platform
+Human-GEM-1.16-Media,GMCS,CPLEX,2543.511962,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2546.515647,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2543.494218,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2546.430142,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2542.905094,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2545.542500,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2543.099280,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2542.970468,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2544.922250,262,matlab
+Human-GEM-1.16-Media,GMCS,CPLEX,2544.734404,262,matlab
+Human-GEM-1.16,GMCS,CPLEX,253.117215,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,249.851488,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,256.391412,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,254.654459,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,255.563907,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,252.619718,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,255.493045,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,253.416641,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,253.619014,121,matlab
+Human-GEM-1.16,GMCS,CPLEX,253.503073,121,matlab
+E.coli core,GMCS,CPLEX,23.000682,455,matlab
+E.coli core,GMCS,CPLEX,21.18404,455,matlab
+E.coli core,GMCS,CPLEX,19.247036,455,matlab
+E.coli core,GMCS,CPLEX,21.766344,455,matlab
+E.coli core,GMCS,CPLEX,21.18404,455,matlab
+E.coli core,GMCS,CPLEX,23.08640,455,matlab
+E.coli core,GMCS,CPLEX,22.66472,455,matlab
+E.coli core,GMCS,CPLEX,18.91743,455,matlab
+E.coli core,GMCS,CPLEX,22.84124,455,matlab
+E.coli core,GMCS,CPLEX,18.36757,455,matlab
+iJN1463,GMCS,CPLEX,1036.947726,1094,matlab
+iJN1463,GMCS,CPLEX,1032.385721,1094,matlab
+iJN1463,GMCS,CPLEX,1034.301574,1094,matlab
+iJN1463,GMCS,CPLEX,1033.114513,1094,matlab
+iJN1463,GMCS,CPLEX,1038.044644,1094,matlab
+iJN1463,GMCS,CPLEX,1035.558047,1094,matlab
+iJN1463,GMCS,CPLEX,1031.376584,1094,matlab
+iJN1463,GMCS,CPLEX,1035.698675,1094,matlab
+iJN1463,GMCS,CPLEX,1033.757139,1094,matlab
+iJN1463,GMCS,CPLEX,1032.368292,1094,matlab
+iML1515,GMCS,CPLEX,420.6851,393,matlab
+iML1515,GMCS,CPLEX,426.570083,393,matlab
+iML1515,GMCS,CPLEX,418.392326,393,matlab
+iML1515,GMCS,CPLEX,424.2576,393,matlab
+iML1515,GMCS,CPLEX,426.3379,393,matlab
+iML1515,GMCS,CPLEX,427.1370,393,matlab
+iML1515,GMCS,CPLEX,422.6351,393,matlab
+iML1515,GMCS,CPLEX,420.5456,393,matlab
+iML1515,GMCS,CPLEX,421.6741,393,matlab
+iML1515,GMCS,CPLEX,424.7430,393,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1618.655259,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1609.792924,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1619.471762,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1614.0969,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1618.6161,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1617.1591,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1614.0917,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1622.6265,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1618.8120,864,matlab
+Yeast-GEM-8.7,GMCS,CPLEX,1609.5910,864,matlab
+E.coli core,StrainDesign,Gurobi,18.11263299,455,python
+E.coli core,StrainDesign,Gurobi,17.27291179,455,python
+E.coli core,StrainDesign,Gurobi,17.18901801,455,python
+E.coli core,StrainDesign,Gurobi,17.2518,455,python
+E.coli core,StrainDesign,Gurobi,18.2495,455,python
+E.coli core,StrainDesign,Gurobi,17.2860,455,python
+E.coli core,StrainDesign,Gurobi,17.0857,455,python
+E.coli core,StrainDesign,Gurobi,16.9828,455,python
+E.coli core,StrainDesign,Gurobi,17.5983,455,python
+E.coli core,StrainDesign,Gurobi,17.7293,455,python
+iML1515,StrainDesign,Gurobi,2250.8324,393,python
+iML1515,StrainDesign,Gurobi,2269.0324,393,python
+iML1515,StrainDesign,Gurobi,2350.5599,393,python
+iML1515,StrainDesign,Gurobi,2232.0644,393,python
+iML1515,StrainDesign,Gurobi,2288.8221,393,python
+iML1515,StrainDesign,Gurobi,2299.46,393,python
+iML1515,StrainDesign,Gurobi,2338.5173,393,python
+iML1515,StrainDesign,Gurobi,2022.0101,393,python
+iML1515,StrainDesign,Gurobi,2327.4111,393,python
+iML1515,StrainDesign,Gurobi,2337.4448,393,python
+iJN1463,StrainDesign,Gurobi,2749.8928,1094,python
+iJN1463,StrainDesign,Gurobi,2759.8774,1094,python
+iJN1463,StrainDesign,Gurobi,2728.0179,1094,python
+iJN1463,StrainDesign,Gurobi,2827.005,1094,python
+iJN1463,StrainDesign,Gurobi,2782.3111,1094,python
+iJN1463,StrainDesign,Gurobi,2755.3855,1094,python
+iJN1463,StrainDesign,Gurobi,2700.385,1094,python
+iJN1463,StrainDesign,Gurobi,2750.4139,1094,python
+iJN1463,StrainDesign,Gurobi,2769.099,1094,python
+iJN1463,StrainDesign,Gurobi,2735.5158,1094,python
+E.coli core,StrainDesign,CPLEX,17.6091,455,python
+E.coli core,StrainDesign,CPLEX,17.3677,455,python
+E.coli core,StrainDesign,CPLEX,18.8094,455,python
+E.coli core,StrainDesign,CPLEX,17.7267,455,python
+E.coli core,StrainDesign,CPLEX,17.3487,455,python
+E.coli core,StrainDesign,CPLEX,16.5898,455,python
+E.coli core,StrainDesign,CPLEX,17.2033,455,python
+E.coli core,StrainDesign,CPLEX,18.3453,455,python
+E.coli core,StrainDesign,CPLEX,17.6033,455,python
+E.coli core,StrainDesign,CPLEX,16.0045,455,python
+iML1515,StrainDesign,CPLEX,2428.6632,393,python
+iML1515,StrainDesign,CPLEX,2446.0486,393,python
+iML1515,StrainDesign,CPLEX,2445.2173,393,python
+iML1515,StrainDesign,CPLEX,2412.7871,393,python
+iML1515,StrainDesign,CPLEX,2419.9033,393,python
+iML1515,StrainDesign,CPLEX,2391.6064,393,python
+iML1515,StrainDesign,CPLEX,2465.8304,393,python
+iML1515,StrainDesign,CPLEX,2384.0936,393,python
+iML1515,StrainDesign,CPLEX,2458.6158,393,python
+iML1515,StrainDesign,CPLEX,2454.3353,393,python
+iJN1463,StrainDesign,CPLEX,2992.9247,1094,python
+iJN1463,StrainDesign,CPLEX,2938.7471,1094,python
+iJN1463,StrainDesign,CPLEX,2836.3318,1094,python
+iJN1463,StrainDesign,CPLEX,2617.4992,1094,python
+iJN1463,StrainDesign,CPLEX,2767.3904,1094,python
+iJN1463,StrainDesign,CPLEX,2765.1531,1094,python
+iJN1463,StrainDesign,CPLEX,2864.5816,1094,python
+iJN1463,StrainDesign,CPLEX,2759.9141,1094,python
+iJN1463,StrainDesign,CPLEX,2857.1547,1094,python
+iJN1463,StrainDesign,CPLEX,2874.4813,1094,python
+Human-GEM-1.16-Media,StrainDesign,Gurobi,0,0, python
+Human-GEM-1.16-Media,StrainDesign,CPLEX,0,0, python
+Human-GEM-1.16,StrainDesign,Gurobi,0,0, python
+Human-GEM-1.16,StrainDesign,CPLEX,0,0, python
+Yeast-GEM-8.7,StrainDesign,Gurobi,0,0, python
+Yeast-GEM-8.7,StrainDesign,CPLEX,0,0, python
+Human-GEM-1.16-Media,StrainDesign,Gurobi,0,0, python
+Human-GEM-1.16-Media,StrainDesign,CPLEX,0,0, python
+Human-GEM-1.16,StrainDesign,Gurobi,0,0, python
+Human-GEM-1.16,StrainDesign,CPLEX,0,0, python
+Yeast-GEM-8.7,StrainDesign,Gurobi,0,0, python
+Yeast-GEM-8.7,StrainDesign,CPLEX,0,0, python
+Recon3D,StrainDesign,Gurobi,0,0, python
+Recon3D,StrainDesign,CPLEX,0,0, python
+E.coli core,gMCSpy,Gurobi,1.993700027,455,python
+E.coli core,gMCSpy,Gurobi,0.927058458,455,python
+E.coli core,gMCSpy,Gurobi,0.944777012,455,python
+E.coli core,gMCSpy,Gurobi,0.937492371,455,python
+E.coli core,gMCSpy,Gurobi,0.956603527,455,python
+E.coli core,gMCSpy,Gurobi,0.936476231,455,python
+E.coli core,gMCSpy,Gurobi,0.974794626,455,python
+E.coli core,gMCSpy,Gurobi,0.925682545,455,python
+E.coli core,gMCSpy,Gurobi,0.988789797,455,python
+E.coli core,gMCSpy,Gurobi,0.939067364,455,python
+E.coli core,gMCSpy,CPLEX,1.186914444,455,python
+E.coli core,gMCSpy,CPLEX,1.167684078,455,python
+E.coli core,gMCSpy,CPLEX,1.278140306,455,python
+E.coli core,gMCSpy,CPLEX,1.091411591,455,python
+E.coli core,gMCSpy,CPLEX,1.239957809,455,python
+E.coli core,gMCSpy,CPLEX,1.135990143,455,python
+E.coli core,gMCSpy,CPLEX,1.530638695,455,python
+E.coli core,gMCSpy,CPLEX,1.076462984,455,python
+E.coli core,gMCSpy,CPLEX,1.60637331,455,python
+E.coli core,gMCSpy,CPLEX,1.085489988,455,python
+iJN1463,gMCSpy,Gurobi,160.2164943,1094,python
+iJN1463,gMCSpy,Gurobi,159.8226256,1094,python
+iJN1463,gMCSpy,Gurobi,159.6274395,1094,python
+iJN1463,gMCSpy,Gurobi,159.0591481,1094,python
+iJN1463,gMCSpy,Gurobi,159.4381311,1094,python
+iJN1463,gMCSpy,Gurobi,158.5180562,1094,python
+iJN1463,gMCSpy,Gurobi,157.6575892,1094,python
+iJN1463,gMCSpy,Gurobi,157.8357174,1094,python
+iJN1463,gMCSpy,Gurobi,157.8866227,1094,python
+iJN1463,gMCSpy,Gurobi,157.839807,1094,python
+iJN1463,gMCSpy,CPLEX,323.1053522,1094,python
+iJN1463,gMCSpy,CPLEX,322.087923,1094,python
+iJN1463,gMCSpy,CPLEX,319.3520482,1094,python
+iJN1463,gMCSpy,CPLEX,321.1791897,1094,python
+iJN1463,gMCSpy,CPLEX,323.3181183,1094,python
+iJN1463,gMCSpy,CPLEX,322.3954268,1094,python
+iJN1463,gMCSpy,CPLEX,321.5944507,1094,python
+iJN1463,gMCSpy,CPLEX,319.9510951,1094,python
+iJN1463,gMCSpy,CPLEX,320.9098442,1094,python
+iJN1463,gMCSpy,CPLEX,320.401715,1094,python
+iML1515,gMCSpy,Gurobi,88.06444955,393,python
+iML1515,gMCSpy,Gurobi,87.83762336,393,python
+iML1515,gMCSpy,Gurobi,87.70246363,393,python
+iML1515,gMCSpy,Gurobi,87.88188744,393,python
+iML1515,gMCSpy,Gurobi,87.92325974,393,python
+iML1515,gMCSpy,Gurobi,88.01139069,393,python
+iML1515,gMCSpy,Gurobi,87.98614907,393,python
+iML1515,gMCSpy,Gurobi,88.79421258,393,python
+iML1515,gMCSpy,Gurobi,87.96465087,393,python
+iML1515,gMCSpy,Gurobi,88.08902884,393,python
+iML1515,gMCSpy,CPLEX,141.8012307,393,python
+iML1515,gMCSpy,CPLEX,141.3828981,393,python
+iML1515,gMCSpy,CPLEX,141.7345579,393,python
+iML1515,gMCSpy,CPLEX,140.6466932,393,python
+iML1515,gMCSpy,CPLEX,142.1565316,393,python
+iML1515,gMCSpy,CPLEX,141.593487,393,python
+iML1515,gMCSpy,CPLEX,140.7716634,393,python
+iML1515,gMCSpy,CPLEX,141.6470945,393,python
+iML1515,gMCSpy,CPLEX,142.3287022,393,python
+iML1515,gMCSpy,CPLEX,141.5339425,393,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,128.0071166,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,127.6522477,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,127.7122307,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,128.3409534,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,127.9260573,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,127.2924924,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,127.0690494,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,126.9030616,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,126.9698265,864,python
+Yeast-GEM-8.7,gMCSpy,Gurobi,126.9448419,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,172.5679331,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,173.1667006,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,173.231343,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,173.4910562,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,172.826293,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,172.8045456,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,173.127425,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,172.864553,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,173.1206882,864,python
+Yeast-GEM-8.7,gMCSpy,CPLEX,172.4984756,864,python
+Human-GEM-1.16,gMCSpy,Gurobi,16.11673403,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,17.5545373,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,15.84254384,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,16.38922524,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,16.62681413,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,15.81985497,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,15.79579091,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,17.04847646,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,15.83589268,121,python
+Human-GEM-1.16,gMCSpy,Gurobi,15.79689312,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,18.53615761,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,18.49467707,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,18.16106415,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,18.53786826,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,18.37964821,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,18.21305561,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,19.64314842,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,18.56466269,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,18.4878881,121,python
+Human-GEM-1.16,gMCSpy,CPLEX,17.69595551,121,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,206.017889,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,204.378042,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,204.4671478,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,203.9293776,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,204.761313,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,204.5475612,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,203.8578813,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,204.6040998,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,203.8445675,263,python
+Human-GEM-1.16-Media,gMCSpy,Gurobi,203.8136895,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1009.084387,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1010.430475,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1006.976539,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1007.403855,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1009.827233,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1010.487804,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1006.433864,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1011.286963,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1010.7824,263,python
+Human-GEM-1.16-Media,gMCSpy,CPLEX,1005.719096,263,python
+Recon3D,gMCSpy,Gurobi,26.79255462,9,python
+Recon3D,gMCSpy,Gurobi,24.90263247,9,python
+Recon3D,gMCSpy,Gurobi,25.79594827,9,python
+Recon3D,gMCSpy,Gurobi,24.95500755,9,python
+Recon3D,gMCSpy,Gurobi,26.29865551,9,python
+Recon3D,gMCSpy,Gurobi,24.95858383,9,python
+Recon3D,gMCSpy,Gurobi,26.16643596,9,python
+Recon3D,gMCSpy,Gurobi,25.02107167,9,python
+Recon3D,gMCSpy,Gurobi,25.52266526,9,python
+Recon3D,gMCSpy,Gurobi,25.62549853,9,python
+Recon3D,gMCSpy,CPLEX,33.25750804,9,python
+Recon3D,gMCSpy,CPLEX,31.60549545,9,python
+Recon3D,gMCSpy,CPLEX,30.76648903,9,python
+Recon3D,gMCSpy,CPLEX,32.21759439,9,python
+Recon3D,gMCSpy,CPLEX,32.336725,9,python
+Recon3D,gMCSpy,CPLEX,31.92592072,9,python
+Recon3D,gMCSpy,CPLEX,31.89793444,9,python
+Recon3D,gMCSpy,CPLEX,32.7052505,9,python
+Recon3D,gMCSpy,CPLEX,31.28811193,9,python
+Recon3D,gMCSpy,CPLEX,31.36059976,9,python
+Recon3D,GMCS,CPLEX,174.46243,9,matlab
+Recon3D,GMCS,CPLEX,175.639157,9,matlab
+Recon3D,GMCS,CPLEX,169.634349,9,matlab
+Recon3D,GMCS,CPLEX,173.571324,9,matlab
+Recon3D,GMCS,CPLEX,173.380367,9,matlab
+Recon3D,GMCS,CPLEX,174.422818,9,matlab
+Recon3D,GMCS,CPLEX,177.740257,9,matlab
+Recon3D,GMCS,CPLEX,172.374791,9,matlab
+Recon3D,GMCS,CPLEX,172.008839,9,matlab
+Recon3D,GMCS,CPLEX,177.164711,9,matlab
