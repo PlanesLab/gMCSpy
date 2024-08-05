@@ -102,18 +102,3 @@ E.g.
 {'ENSG00000072062_KI': {'obj': 1.0, 'readjustment': True}, 'ENSG00000082701_KO': {'obj': None}, 'readjustment': True}
 {'ENSG00000072062_KI': {'obj': 1.0, 'readjustment': True}, 'ENSG00000141736_KO': {'obj': None}, 'readjustment': True}
 {'ENSG00000078061_KI': {'obj': 1.0, 'readjustment': True}, 'ENSG00000082701_KO': {'obj': None}, 'readjustment': True}
-{'ENSG00000080824_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000145284_KO': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000095015_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000104368_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000104695_KO': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000104814_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000107968_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000108861_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000109270_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000110786_KO': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000112062_KO': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000118515_KO': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000120129_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': 0.0, 'readjustment': False}, 'ENSG00000120875_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ENSG00000082701_KO': {'obj': -1.0, 'readjustment': False}, 'ENSG00000126934_KI': {'obj': 1.0, 'readjustment': True}, 'readjustment': True}
-{'ATG13_RB1CC1_ULK1_KO': {'obj': 1.0, 'readjustment': True}, 'ENSG00000142208_KO': {'obj': None}, 'ENSG00000162409_KI': {'obj': None}, 'readjustment': True}

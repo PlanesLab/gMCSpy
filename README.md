@@ -8,8 +8,7 @@ The models must come from the [cobrapy](https://opencobra.github.io/cobrapy/) pa
 
 ## Documentation
 
-[Documentation](https://planeslab.github.io/gMCSpy/)
-
+[Genetic Minimal Intervention Sets](https://planeslab.github.io/gMCSpy/gMIS.html)
 ## Installation
 
 Install gmcspy from pip
