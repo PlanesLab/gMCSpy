@@ -51,6 +51,7 @@ https://github.com/PlanesLab/gMCSpy
    modules
    examples
    installation
+   gMIS
 
 
 

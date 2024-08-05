@@ -2,7 +2,7 @@ from distutils.core import setup
 setup(
   name = 'gMCSpy',         
   packages = ['gMCSpy'],   
-  version = '1.0.1',      
+  version = '1.1.0',      
   license='MIT',        
   description = 'gMCSpy is a python package for the calculation of Genetic Minimal Cut sets (GMCS). In simple terms the idea is to take a metabolic model and calculate the genetic vulnerabilities that will render the biomass production impossible. This is done through a Mixed-Integer Linear problem (MILP) formultion and the use of a linear solver.',   
   author = 'Carlos Javier Rodriguez',                   
@@ -17,7 +17,8 @@ setup(
           'tqdm',
           'joblib',
           'gurobipy',
-          'cplex'
+          'cplex',
+          'bidict'
           
       ],
   classifiers=[

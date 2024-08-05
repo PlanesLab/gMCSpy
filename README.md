@@ -20,6 +20,10 @@ Install gmcspy from pip
   
 ## Quick Start
 
+### Calculating Genetic Minimal Interventions
+
+[Documentation](https://planeslab.github.io/gMCSpy/)
+
 ### E. coli core
 
 ```python
