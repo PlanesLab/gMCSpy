@@ -11,7 +11,7 @@ Here we present a set of examples of how to use gMCSpy with genome-scale metabol
 Calculating the gMIS of Human-GEM v.14.0
 ---------------------------------------------------------------------------
 
-To replicate this example, make sure you have completed the `installation guide <installation.rst>`_, The Human-GEM model can be downloaded from the `Human-GEM <https://github.com/SysBioChalmers/Human-GEM/releases>`_. We also need a regulatory network, this will allow us to integrate activation and blockage intereactions. The following code-block shows how to calculate the gMIS of the Human-GEM model.
+To replicate this example, make sure you have completed the `installation guide <installation.html>`_, The Human-GEM model can be downloaded from the `Human-GEM <https://github.com/SysBioChalmers/Human-GEM/releases>`_. We also need a regulatory network, this will allow us to integrate activation and blockage intereactions. The following code-block shows how to calculate the gMIS of the Human-GEM model.
 
 .. code-block:: python
 
