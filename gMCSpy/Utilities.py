@@ -260,9 +260,6 @@ def read_sol_log(logFile):
         
         return solDict
         
-
-
-
 def add_quotes_inside_brackets(input_string):
     # Use regular expressions to find text inside square brackets
     pattern = r'\[([^]]*)\]'

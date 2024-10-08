@@ -31,9 +31,27 @@ from .Utilities import createLog
 
 from bidict import bidict
 
+from bonesis.reprogramming import marker_reprogramming
+import mpbn
 
-import pickle
+import sys
+import os
+from contextlib import contextmanager
 
+@contextmanager
+def suppress_output():
+    # Save current stdout and stderr
+    stdout = sys.stdout
+    stderr = sys.stderr
+    # Redirect stdout and stderr to devnull (a special file that discards all data written to it)
+    sys.stdout = open(os.devnull, 'w')
+    sys.stderr = open(os.devnull, 'w')
+    try:
+        yield
+    finally:
+        # Restore stdout and stderr
+        sys.stdout = stdout
+        sys.stderr = stderr
 
 def calculateGMIS(cobraModel, regulatory_dataframe, num_layers=2, **kwargs):
     '''
@@ -103,7 +121,6 @@ def calculateGMIS(cobraModel, regulatory_dataframe, num_layers=2, **kwargs):
     kwargs.pop('saveSolutions', None)
     kwargs.pop("forceLength", None)
     kwargs.pop("timeLimit", None)
-    
     path = "logs/" + name + "/process/"
     createLog(path)
     path = "logs/" + name
@@ -378,7 +395,36 @@ def interpretExpandedRules(key, expandedRules, genesGPR):
                 expandedRules[gene] = {'rule': f'{gene} = {KO_gene} | {KI_gene}'}
     return expandedRules
 
-def calculateRegNetGMatrix(model, regulatory_dict, num_layers=2, solver='gurobi', **kwargs):
+def bonesisCalculateCutSets(boolForm, maxKOLength=5):
+    f = mpbn.MPBooleanNetwork(boolForm)
+    res = marker_reprogramming(f, {"gpr": 0}, maxKOLength, ensure_exists=True)
+    #tabulate(list(f.attractors()))
+    #print(list(res))
+    #print('done')
+    return list(res)
+
+def boolTransformer(expandedRules, value):
+    newDict = {}
+    # transform the grp into a boolean form
+    trans_gpr = str(value['gpr'])
+    trans_gpr = trans_gpr.replace(' and ', ' & ').replace(' or ', ' | ')
+    newDict['gpr'] = trans_gpr
+
+    for source, target, interaction in zip(expandedRules['sources'], expandedRules['targets'], expandedRules['interaction']):
+        if interaction == -1:
+            source = f'!{source}'
+        if target not in newDict.keys():
+            newDict[target] = source
+        else:
+            newDict[target] = f'{newDict[target]} | {source}'
+    
+    for gene in expandedRules['genes']:
+        if gene not in newDict.keys():
+            newDict[gene] = gene
+            
+    return newDict
+
+def calculateRegNetGMatrix(model, regulatory_dict, num_layers=2, solver='gurobi', **kwargs):    
     isoformSeparator = kwargs.get('isoformSeparator', None)
     maxKOLength = kwargs.get('maxKOLength', 3)
     dictManager = mergeIsforms(isoformSeparator)
@@ -387,30 +433,52 @@ def calculateRegNetGMatrix(model, regulatory_dict, num_layers=2, solver='gurobi'
     # create a dictionary with the gpr rules associated to each reaction to get a unique list of gprs
     gprDict = getGPRDict(model)
     gDict = {}
-    # go through each gpr rule and expand it to the number of layers, if the rule is not expanded use traditional MCS
 
+    
+    # go through each gpr rule and expand it to the number of layers, if the rule is not expanded use traditional MCS
+    geneSet = set()
     for key, value in tqdm(gprDict.items()):
-        expandedRules = stackLayers(value['genes'], regulatory_dict, num_layers, solver)
-        if len(expandedRules['sources']) == 0:
+        for iterat in value['gpr'].genes:
+            geneSet.add(iterat)
+        expandedRulesWithCycles = stackLayersWithCycles(value['genes'], regulatory_dict, num_layers, solver)
+        for iterat in expandedRulesWithCycles['sources']:
+            geneSet.add(iterat)
+        for iterat in expandedRulesWithCycles['targets']:
+            geneSet.add(iterat)
+        if len(expandedRulesWithCycles['sources']) == 0:
             calculateTraditionalMCS(gDict, value['gpr'], value['reactions'])
         else:
-            expandedRules = interpretExpandedRules(key, expandedRules, value['genes'])
-            duplicatedNetwork = []
-            for _, rule in expandedRules.items():
-                duplicatedNetwork.extend(parseRule(rule['rule']))
-           
-            solutionDict = calculateRegNetMCS(solver, duplicatedNetwork, )
-            for _, data in solutionDict.items():
-                geneSet = [gene.split('zp_')[1] for gene in data["solution"]]
+            boolForm = boolTransformer(expandedRulesWithCycles, value)
+            with suppress_output():
+                gmcs = bonesisCalculateCutSets(boolForm, maxKOLength = 5)
+            if len(gmcs) == 1:
+                # This means the only solution found is blocking the original gpr
+                continue
+            for solution in gmcs:
+                if list(solution.keys())[0] == 'gpr':
+                    continue
                 result_set = []
-                for solution in geneSet:
-                    if 'KO' in solution:
-                        result_set.append(solution.split('_on')[0])
-                    else:
-                        result_set.append(solution.split('_off')[0])
+                for key, val in solution.items():
+                    lastName = None
+                    if val == 0:
+                        lastName = 'KO'
+                    elif val == 1:
+                        lastName = 'KI'
+                    sol = key + '_' + lastName
+                    result_set.append(sol)
+                #print(f'The gmcs is {solution}')
+                #print(f'The result_set is {result_set}')            
                 result_set = frozenset(result_set)
                 addToDict(gDict, result_set, value['reactions'])
-    
+
+    nameGenesFile = f'Genes_{datetime.now().strftime("%H-%M-%S--%d-%m-%Y")}.txt'
+    filename = 'C:/Users/cjrodriguezf/Documents/PhD/Loic/evaluation/Data/Gene_lists_prev/' + nameGenesFile
+    # Write set to file, create file if it doesn't exist
+    with open(filename, 'w') as file:
+        file.write('Genes\n')
+        for gene in geneSet:
+            file.write(gene + '\n')
+
     # Make sure that each entry in the gDict is unique list of reactions
     for key, value in gDict.items():
         gDict[key] = list(set(value))
@@ -439,6 +507,24 @@ def calculateRegNetGMatrix(model, regulatory_dict, num_layers=2, solver='gurobi'
     
     
     return gObject
+
+def calculateGMCSofGPR_no_cycles(key, expandedRules, value, solver='gurobi'):
+    expandedRules = interpretExpandedRules(key, expandedRules, value['genes'])
+    duplicatedNetwork = []
+    for _, rule in expandedRules.items():
+        duplicatedNetwork.extend(parseRule(rule['rule']))
+    
+    solutionDict = calculateRegNetMCS(solver, duplicatedNetwork)
+    for _, data in solutionDict.items():
+        geneSet = [gene.split('zp_')[1] for gene in data["solution"]]
+        result_set = []
+        for solution in geneSet:
+            if 'KO' in solution:
+                result_set.append(solution.split('_on')[0])
+            else:
+                result_set.append(solution.split('_off')[0])
+        result_set = frozenset(result_set)
+    return result_set
                 
 def calculateTraditionalMCS(gDict, gpr, reactions):
     # get the genes from the gpr rule
@@ -493,7 +579,7 @@ def calculateRegNetMCS(solver, duplicatedNetwork, maxKOLength=5):
     problem = buildDictionaryDossageNetwork(model, forceLength=True, rxnToForce=rxnToForce, compressedNodes=compressedNodes)
         
     timelimit = 500
-    numWorkers = 16
+    numWorkers = 0
         
     gurobi_default_params = {
         "MIPFocus": 3,
@@ -692,15 +778,49 @@ def constructLayer(genes, regulatory_dict, solver):
             [layer_dict['targets'].append(regulatory_dict['target_ENSEMBL'][i]) for i in target_indices]
             [layer_dict['interaction'].append(regulatory_dict['interaction'][i]) for i in target_indices]
             layer_dict['genes'] = list(set(layer_dict['genes']).union(set(layer_dict['sources'])))
-    #hasCycles = checkCycles(layer_dict['sources'], layer_dict['targets'], solver)
-    #if not hasCycles:
-    return layer_dict
+    hasCycles = checkCycles(layer_dict['sources'], layer_dict['targets'], solver)
+    if not hasCycles:
+        return layer_dict
         
+def constructLayerWithCycles(genes, regulatory_dict, solver):
+    layer_dict = {}
+    layer_dict['sources'] = []
+    layer_dict['targets'] = []
+    layer_dict['interaction'] = []
+    layer_dict['genes'] = genes
+    for gene in genes:
+        if gene in regulatory_dict['target_ENSEMBL']:
+            # get the index of all the target genes that match to gene
+            target_indices = [i for i, x in enumerate(regulatory_dict['target_ENSEMBL']) if x == gene]
+            [layer_dict['sources'].append(regulatory_dict['source_ENSEMBL'][i]) for i in target_indices]
+            [layer_dict['targets'].append(regulatory_dict['target_ENSEMBL'][i]) for i in target_indices]
+            [layer_dict['interaction'].append(regulatory_dict['interaction'][i]) for i in target_indices]
+            layer_dict['genes'] = list(set(layer_dict['genes']).union(set(layer_dict['sources'])))
+    return layer_dict
+    
 def stackLayers(genes, regulatory_dict, num_layers, solver):
     if num_layers == 0:
         return {'sources': [], 'targets': [], 'interaction': [], 'genes': []}
     for i in range(num_layers):
         layer = constructLayer(genes, regulatory_dict, solver)
+        if layer:
+            genes = layer['genes']
+            safeLayer = layer.copy()
+        else:
+            break
+    if not layer:
+        if i == 0:
+            safeLayer = {'sources': [], 'targets': [], 'interaction': [], 'genes': []}
+        return safeLayer
+    else:
+        layer['layer_hasCycles'] = [i + 1, False]
+    return layer
+
+def stackLayersWithCycles(genes, regulatory_dict, num_layers, solver):
+    if num_layers == 0:
+        return {'sources': [], 'targets': [], 'interaction': [], 'genes': []}
+    for i in range(num_layers):
+        layer = constructLayerWithCycles(genes, regulatory_dict, solver)
         if layer:
             genes = layer['genes']
             safeLayer = layer.copy()
@@ -849,7 +969,7 @@ def addOutputReactions(model):
 
 def checkRegulatoryNetwork(regulatoryDict):
     # Banned symbols
-    bannedSymbols = ['*', '+', '/', ',', '~', "'", '-',':']
+    bannedSymbols = ['*', '+', '/', ',', '~', "'", '-', ':', ';']
     # Implement a bidirectional dictionary as a more efficient way to store the reference
     referenceDict = bidict()
     # Check if the regulatory network has valid sources and targets, raise warning if not and suppress the character

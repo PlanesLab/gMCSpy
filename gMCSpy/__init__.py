@@ -2,6 +2,7 @@ from .Utilities import createToyModel
 from .Utilities import saveSolutions
 from .Utilities import setSolver
 from .Utilities import saveSolutionDict
+from .Utilities import loadSolutions
 
 from .ProblemInterpreters import cplexProblemInterpreter
 from .ProblemInterpreters import gurobiProblemInterpreter
@@ -20,9 +21,11 @@ from .Validations import checkGMCSParallel
 from .OptimizationProblem import OptimizationProblem
 
 
-from .calculateSyntheticDosageGMCS import calculateGMIS
+#from .calculateSyntheticDosageGMCS import calculateGMIS
 from .calculateSyntheticDosageGMCS import calculateRegNetGMatrix
 
 from .ProblemDefinitions import buildDictionaryRegNetwork
 
-from .calculateReadjustment import calculateReadjustment
+from .calculateReadjustmentCycles import calculateReadjustment
+
+from.calculateGMCSwithCycles import calculateGMIS, bonesisCalculateCutSets
