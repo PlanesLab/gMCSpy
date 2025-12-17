@@ -283,7 +283,6 @@ def calculateGeneMCS(cobraModel, **kwargs):
             "Cuts": 2,
             #"OptimalityTol": 1e-9,
         }
-        
 
         if forceLength:
             gurobi_default_params['MIPFocus'] = 3
