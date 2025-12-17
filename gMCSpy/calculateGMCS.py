@@ -314,15 +314,21 @@ def calculateGeneMCS(cobraModel, **kwargs):
     }
 
 
-    if solver == "gurobi" and user_defined_params is None:
+    if solver == "gurobi":
         params = gurobi_default_params
-    elif solver == "cplex" and user_defined_params is None:
+    elif solver == "cplex":
         params = cplex_default_params
     else:
         params = {}
         
     if user_defined_params is not None:
-        params = user_defined_params
+        # insert user defined params into params
+        for key, value in user_defined_params.items():
+            params[key] = value
+
+    if verbose > 1:
+        logging.info("Solver parameters: " + str(params))
+        
     # Interpret the problem, depending on the solver each problem has to be interpreted differently into the solver's interface
     optimization = problem.interpretProblem(verbose=2, parameters=params)
 
@@ -959,7 +965,3 @@ def transformReactionIdsIntoIndexes(gDict, reactionList):
             reactionIndexes.append(reactionList.index(reaction))
         newGDict[key] = reactionIndexes
     return newGDict
-
-
-
-        
