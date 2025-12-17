@@ -93,6 +93,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
     saveSolutions =  kwargs.get('saveSolutions', True)
     timeLimit = kwargs.get("timeLimit", 1e4)
     solver = kwargs["solver"]
+    user_defined_params = kwargs.get("params", None)
     
     if kwargs.get("forceLength") is None:
         if solver == "gurobi":
@@ -119,6 +120,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
     kwargs.pop('saveSolutions', None)
     kwargs.pop("forceLength", None)
     kwargs.pop("timeLimit", None)
+    kwargs.pop("userDefinedParams", None)
 
     numWorkers = kwargs.get("numWorkers", 0)
        
@@ -138,7 +140,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
             **kwargs,
         )
     else:
-        gObject = buildGMatrix(cobraModel, maxKOLength, verbose=0, **kwargs)
+        gObject = buildGMatrix(cobraModel, maxKOLength, verbose=0, saveGMatrix=saveGMatrix, path=path, **kwargs)
     endTime = time.time()
     logging.info("GMatrix: " + str(endTime - startTime))
     
@@ -161,19 +163,6 @@ def calculateGeneMCS(cobraModel, **kwargs):
         gMatrix = createSparseMatrix(gDict, cobraModel.reactions)
         [relationships, numberNewGenesByKO] = relatedRows(gDict, mergeIsforms(isoformSeparator))
    
-    if saveGMatrix:        
-        gMatrix_Strings = []
-        for ko, reactions  in gDict.items():
-            string_ko = "@@".join(list(ko))
-            string_reactions = "@@".join(cobraModel.reactions[x].id for x in reactions)
-            row = string_ko + " -> " + string_reactions
-            gMatrix_Strings.append(row)
-        filename = f"Gmat_python_{cobraModel.id}_{solver}.csv"
-        gPath = path + "/GMatrix/" 
-        createLog(gPath)
-        completePath = gPath + filename
-        df = pd.DataFrame({'gMatrix': gMatrix_Strings})
-        df.to_csv(completePath)
 
 
     # Initialize the genes to be knocked out, e.g. genes that you want to be part of the gMCS
@@ -294,6 +283,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
             "Cuts": 2,
             #"OptimalityTol": 1e-9,
         }
+        
 
         if forceLength:
             gurobi_default_params['MIPFocus'] = 3
@@ -325,12 +315,15 @@ def calculateGeneMCS(cobraModel, **kwargs):
     }
 
 
-    if solver == "gurobi":
+    if solver == "gurobi" and user_defined_params is None:
         params = gurobi_default_params
-    elif solver == "cplex":
+    elif solver == "cplex" and user_defined_params is None:
         params = cplex_default_params
     else:
         params = {}
+        
+    if user_defined_params is not None:
+        params = user_defined_params
     # Interpret the problem, depending on the solver each problem has to be interpreted differently into the solver's interface
     optimization = problem.interpretProblem(verbose=2, parameters=params)
 
@@ -407,6 +400,8 @@ def buildGMatrix(
     name: str = None,
     isoformSeparator: str = None,
     verbose: int = 0,
+    saveGMatrix: bool = False,
+    path: str = None,
     **kwargs,
 ):
     """
@@ -429,7 +424,8 @@ def buildGMatrix(
     
     maxKOLength = kwargs.get('maxKOLength', 3)
     dictManager = mergeIsforms(isoformSeparator)
-        
+    solver = kwargs.get('solver', 'gurobi')
+    
     modelReactions = [reaction.id for reaction in cobraModel.reactions]
     # create a dictionary with the gpr rules associated to each reaction to get a unique list of gprs
     gprDict = getGPRDict(cobraModel)
@@ -448,6 +444,19 @@ def buildGMatrix(
             
     newGDict = transformReactionIdsIntoIndexes(filteredGDict, modelReactions)
     
+    if saveGMatrix:        
+        gMatrix_Strings = []
+        for ko, reactions  in gDict.items():
+            string_ko = "@@".join(list(ko))
+            string_reactions = "@@".join(reactions)
+            row = string_ko + " -> " + string_reactions
+            gMatrix_Strings.append(row)
+        filename = f"Gmat_python_{cobraModel.id}_{solver}.csv"
+        gPath = path + "/GMatrix/" 
+        createLog(gPath)
+        completePath = gPath + filename
+        df = pd.DataFrame({'gMatrix': gMatrix_Strings})
+        df.to_csv(completePath)
             
     simpG = simplifyGMatrix(newGDict, dictManager)
 
