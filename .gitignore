@@ -57,5 +57,23 @@ dist/
 
 # data
 data/
+
+# formulation benchmark artefacts
+benchmarking/formulation/cache/
+benchmarking/formulation/results/
 *.py
 *.ipynb
+
+# local experiment scripts (scratch, not part of the package)
+benchmarking/formulation/
+
+# run outputs
+logs/
+
+# editor
+.vscode/
+
+# stray JS tooling (not part of the package)
+node_modules/
+package.json
+package-lock.json

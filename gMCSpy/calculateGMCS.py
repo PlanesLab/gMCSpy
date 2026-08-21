@@ -16,6 +16,7 @@ import re
 from ast import And, BoolOp, Or, Name, parse
 
 from collections import defaultdict
+from itertools import combinations
 import warnings
 import time
 
@@ -47,7 +48,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
         - **maxNumberGMCS :** Maximum number of gMCS to be found. Default value is 1e6
         - **verbose:** If 0, the solver will not print any information. Verbose  = 1, log will be printed into the console. Verbose = 2, log will be printed into the console and a log file will be created. Default value is 0.
         - **earlyStop :** If True if optimality returned by the solver the solver will stop without running a second time. Default value is True.
-        - **removeRelated:** If True, the solver will remove the gMCS that are a subset of another gMCS from the solution space. Default value is True.
+        - **removeRelated:** If True, the solver will remove the gMCS that are a subset of another gMCS from the solution space. Default value is False.
         - **targetKOs:** List of genes that you want to be part of the gMCS solutions. The list is expected to be of gene names. Default value is an empty list, which means that all genes will be considered. The gMCS solutions will contain at least one of the genes in the list.
         - **geneSubset:** List of genes to be considered in the gMCS problem. The list is expected to be of gene names. Default value is an empty list, which means that all genes will be considered. This is useful when you want to reduce the search space of the gMCS problem. e.g. geneSubset = ["gene1", "gene2", "gene3"] will only consider genes gene1, gene2 and gene3 as possible intervention points. Only ["gene1"], ["gene2"], ["gene3"], ["gene1", "gene2"], ["gene1", "gene3"], ["gene2", "gene3"] and ["gene1", "gene2", "gene3"] could be solutions. This not compatible with targetKOs.
         - **isNutrient:** If True, the solver will consider the exchange reactions as nutrients, assigning artificial genes to exchange reactions to evaluate what metabolites and genes are essential. Default value is False.
@@ -59,6 +60,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
         - **forceLength:** If True, the solver will find MCS of length 1, 2, 3, ..., MAX_LENGTH_MCS. If False, the solver will find MCS of length MAX_LENGTH_MCS. Default value is True for cplex and false for gurobi.
         - **numWorkers:** Number of workers to be used for parallel processing. Default value is 0. The solvers cplex and gurobi already use parallel processing.      
         - **isoformSeparator:** If not None, the isoforms of the genes will merge into one gene. Default value is None.
+        - **enumeration:** Enumeration strategy. "classic" (default) re-solves the MILP once per gMCS found. "staged-lazy" enumerates one lazy branch-and-bound tree per gene-count order (Gurobi only), which is dramatically faster for deep enumerations (e.g. maxKOLength=4 on large models); it returns the identical gMCS set. Non-gurobi solvers fall back to "classic".
     '''
     kwargs["solver"] = kwargs.get("solver", "gurobi")
     name = (
@@ -79,6 +81,20 @@ def calculateGeneMCS(cobraModel, **kwargs):
     allTime = time.time()
 
     maxKOLength = kwargs.get('maxKOLength', 3)
+    # Cutoff = maxKOLength. Raising it to maxKOLength + 0.5 was tried, on the theory that
+    # a solver fathoms every open branch once the incumbent equals the cutoff and so
+    # kills the solution-pool completion phase at exactly the deepest order requested.
+    # The mechanism is real, but MEASURED ON Human-GEM media at order 4 (cluster, with
+    # MIPFocus=1) the slack is a large net loss:
+    #
+    #            orders 1-3   444s -> 1218s   (2.7x slower, IDENTICAL 262 solutions)
+    #            order-4 pass 334s -> 1240s   for 1 -> 2 solutions
+    #            nodes        598k -> 4131k   at order 4
+    #
+    # The extra branches stay alive but hold almost nothing, so throughput drops ~1.9x.
+    # NOTE that measurement varied Cutoff and MIPFocus together, so the two are not yet
+    # separated; do not re-apply this without isolating them.
+    solverCutoff = maxKOLength
     maxNumberGMCS = kwargs.get('maxNumberGMCS', 1e6)
     verbose = kwargs.get('verbose', 0)
     earlyStop = kwargs.get("earlyStop", True)
@@ -94,7 +110,15 @@ def calculateGeneMCS(cobraModel, **kwargs):
     timeLimit = kwargs.get("timeLimit", 1e4)
     solver = kwargs["solver"]
     user_defined_params = kwargs.get("params", None)
-    
+    enumeration = kwargs.get("enumeration", "classic")
+
+    if enumeration == "staged-lazy" and solver != "gurobi":
+        warnings.warn(
+            f"enumeration='staged-lazy' is implemented for gurobi only; falling back to "
+            f"the classic enumeration for solver '{solver}'."
+        )
+        enumeration = "classic"
+
     if kwargs.get("forceLength") is None:
         if solver == "gurobi":
             forceLength = False
@@ -105,6 +129,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
     else:
         forceLength = kwargs.get("forceLength", False)
     
+    kwargs.pop("enumeration", None)
     kwargs.pop("maxKOLength", None)
     kwargs.pop("maxNumberGMCS", None)
     kwargs.pop("verbose", None)
@@ -116,11 +141,11 @@ def calculateGeneMCS(cobraModel, **kwargs):
     kwargs.pop("isNutrient", None)
     kwargs.pop("exchangeReactions", None)
     kwargs.pop("saveGMatrix", None)
-    kwargs.pop("checkMCS", None)
+    kwargs.pop("checkSolutions", None)
     kwargs.pop('saveSolutions', None)
     kwargs.pop("forceLength", None)
     kwargs.pop("timeLimit", None)
-    kwargs.pop("userDefinedParams", None)
+    kwargs.pop("params", None)
 
     numWorkers = kwargs.get("numWorkers", 0)
        
@@ -247,7 +272,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
             "PoolSolutions": 10,
             "PoolGap": 0.1,
             "PoolSearchMode": 1,
-            "Cutoff": maxKOLength,
+            "Cutoff": solverCutoff,
             "Presolve": 1,
             "PreSOS1Encoding": 2,
             "Cuts": 2,
@@ -277,7 +302,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
             "PoolSolutions": 10000,
             "PoolGap": 0.1,
             "PoolSearchMode": 1,
-            "Cutoff": maxKOLength,
+            "Cutoff": solverCutoff,
             "Presolve": 1,
             "PreSOS1Encoding": 2,
             "Cuts": 2,
@@ -306,7 +331,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
         "preprocessing.presolve": 1,
         "mip.limits.populate": 1000,
         "mip.pool.relgap": 0.1,
-        "mip.tolerances.uppercutoff": maxKOLength,
+        "mip.tolerances.uppercutoff": solverCutoff,
         "mip.pool.intensity": 3,
         "mip.strategy.probe": 2,
         "mip.strategy.variableselect": 4,
@@ -326,9 +351,22 @@ def calculateGeneMCS(cobraModel, **kwargs):
         for key, value in user_defined_params.items():
             params[key] = value
 
+    # Staged-lazy adds no-good cuts during the branch-and-bound via a callback, which
+    # requires Gurobi's LazyConstraints to be enabled before the model is built.
+    if enumeration == "staged-lazy" and solver == "gurobi":
+        params["LazyConstraints"] = 1
+        # The staged path bounds cardinality per stage with an explicit constraint, so the
+        # classic solution-pool machinery is redundant here. Cutoff in particular is an
+        # exactness HAZARD: at the deepest stage the incumbent objective equals the Cutoff,
+        # and Gurobi then fathoms every open branch -- which could prune branches still
+        # holding order-k gMCS. It is stripped from the exact enumerator. (The classic path
+        # keeps these; they are load-bearing there, see the Cutoff note above.)
+        for classicPoolParam in ("Cutoff", "PoolSolutions", "PoolGap", "PoolSearchMode"):
+            params.pop(classicPoolParam, None)
+
     if verbose > 1:
         logging.info("Solver parameters: " + str(params))
-        
+
     # Interpret the problem, depending on the solver each problem has to be interpreted differently into the solver's interface
     optimization = problem.interpretProblem(verbose=2, parameters=params)
 
@@ -349,19 +387,38 @@ def calculateGeneMCS(cobraModel, **kwargs):
     }
 
     # Solve the problem iteratively
-    solutionDict = problemMethods.iterateOverSolver(
-        problem=problem,
-        problemInterpreted=optimization,
-        solver=solver,
-        solutionVariables=solutionVariables,
-        bounds=bounds,
-        mergeSolutions=True,
-        earlyStop=earlyStop,
-        removeRelated=removeRelated,
-        verbose=2,
-        handler=handler,
-        iterationProgress=True,
-    )
+    if enumeration == "staged-lazy":
+        solutionDict, completed = problemMethods.iterateOverSolverStagedLazy(
+            problem=problem,
+            problemInterpreted=optimization,
+            solver=solver,
+            solutionVariables=solutionVariables,
+            bounds=bounds,
+            mergeSolutions=True,
+            verbose=2,
+            handler=handler,
+        )
+        if not completed:
+            message = (
+                "staged-lazy enumeration hit the time limit before finishing every "
+                "order: the returned gMCS are a LOWER BOUND, not a complete enumeration."
+            )
+            logging.warning(message)
+            warnings.warn(message)
+    else:
+        solutionDict = problemMethods.iterateOverSolver(
+            problem=problem,
+            problemInterpreted=optimization,
+            solver=solver,
+            solutionVariables=solutionVariables,
+            bounds=bounds,
+            mergeSolutions=True,
+            earlyStop=earlyStop,
+            removeRelated=removeRelated,
+            verbose=2,
+            handler=handler,
+            iterationProgress=True,
+        )
     allEndTime = time.time()
 
     logging.info("totalTime: " + str(allEndTime - allTime))
@@ -373,14 +430,25 @@ def calculateGeneMCS(cobraModel, **kwargs):
         loggingSolutions = initiateLogger(solutionFileName, solutionPath + solutionFileName)
         loggingSolutions.info('gene,reactions')
         geneSolutionList = []
-        
+
         for order, ko in solutionDict.items():
-            reactions_log_list = []
-            for gene in ko['solution']:
-                reactions = gDict[frozenset([gene])]
-                reactions_log_list.append([cobraModel.reactions[x].id for x in reactions])
-            reactions = ','.join(list(set().union(*reactions_log_list)))
-            ko_log = ','.join(list(ko['solution']))         
+            sol = list(ko['solution'])
+            # A gMCS disables the union of every gMatrix intervention fully contained in
+            # its gene set. Looking up genes one at a time (gDict[frozenset([gene])]) misses
+            # multi-gene rows -- AND enzyme complexes / isozyme sets whose genes are not
+            # single-gene keys -- so those gMCS were logged with an EMPTY reaction list even
+            # though the reactions exist on the multi-gene row. gDict is a defaultdict(list),
+            # so the old single-gene index silently returned [] instead of erroring. Scan the
+            # contained subsets instead (a gMCS has <= maxKOLength genes, so this is cheap)
+            # and use .get to avoid mutating the defaultdict.
+            reactionIndexes = set()
+            for r in range(1, len(sol) + 1):
+                for combo in combinations(sol, r):
+                    rxns = gDict.get(frozenset(combo))
+                    if rxns:
+                        reactionIndexes.update(rxns)
+            reactions = ','.join(cobraModel.reactions[x].id for x in reactionIndexes)
+            ko_log = ','.join(sol)
             loggingSolutions.info(f'[{ko_log}]:[{reactions}]')
 
         solutionHandler = loggingSolutions.handlers[0]

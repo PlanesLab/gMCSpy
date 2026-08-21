@@ -64,6 +64,44 @@ Fields:
 - constantC: A float field representing a constant value.
 - cobraModel: A field representing a cobra model.
 """
+def _extractGurobiSolution(subVector, solutionVariableIndices, solutionVariableNames,
+                           allVars, mergeSolutions):
+    """Single source of truth for turning one Gurobi integer solution into (a) the gene
+    set to report and (b) the no-good cut to exclude it and its supersets.
+
+    Used by BOTH the classic ``iterateOverSolver`` loop and the staged-lazy path, so the
+    cut/merge semantics cannot diverge -- the only difference between the two paths is how
+    the returned cut is registered (``addLConstr`` vs ``cbLazy``), never what it is. This
+    is a verbatim extraction of the classic Gurobi branch's per-solution logic, including
+    the multi-gene-row reduction: when more KO rows are selected than the merged gene
+    count, the rows overlap, and the cut is reduced to the single-gene rows when they
+    alone explain the merged set.
+
+    :param subVector: solution values at the solutionVariableIndices positions (zp vars).
+    :returns: (solutionIndex, geneSet, cutVars, cutRhs) where geneSet is a
+        ``frozenset`` of genes when mergeSolutions else a list of KO-row keys, and the
+        no-good cut is ``sum(cutVars) <= cutRhs``.
+    """
+    solutionIndex = list(i for i in np.where(subVector > 0.5)[0])
+    currentSolution = [allVars[solutionVariableIndices[i]] for i in solutionIndex]
+    if mergeSolutions:
+        geneSolutions = [solutionVariableNames[i] for i in solutionIndex]
+        mergedSolutions = frozenset().union(*geneSolutions)
+        solutionLength = len(mergedSolutions)
+        if len(solutionIndex) > solutionLength:
+            auxGeneList = [gene for gene in geneSolutions if len(gene) == 1]
+            newSolutionIndex = [solutionIndex[geneSolutions.index(gene)]
+                                for gene in auxGeneList]
+            if len(auxGeneList) == solutionLength:
+                currentSolution = [allVars[solutionVariableIndices[i]]
+                                   for i in newSolutionIndex]
+            # else: keep the full selection as the cut (possible minimality occurrence)
+        geneSet = mergedSolutions
+    else:
+        geneSet = [solutionVariableNames[i] for i in solutionIndex]
+    return solutionIndex, geneSet, currentSolution, len(currentSolution) - 1
+
+
 class MinimalCutSetProblem:
     def __init__(self, forceLength=False, verbose=0, solver=None, B=1e-3, C=1e-3) -> None:
         self.forceLength = forceLength
@@ -157,57 +195,31 @@ class MinimalCutSetProblem:
                         solutions[j] = np.array(problemInterpreted.getAttr("Xn", problemInterpreted.getVars()))
 
                     for j in range(numberOfSolutions):
-                        currentSolution =[]
-                        solutionIndex = list(i for i in np.where(solutions[j][solutionVariableIndices] > 0.5)[0])
-                        currentSolution = [
-                            problemInterpreted.getVars()[solutionVariableIndices[i]]
-                            for i in solutionIndex
-                        ]
-                        names = [var.VarName for var in currentSolution]
-                        # To correctly prevent the same solution from being found again, we add a constraint that the sum of the variables in the solution must be less than the total number of variables of order 1 in the solution
+                        solutionIndex, geneSet, cutVars, cutRhs = _extractGurobiSolution(
+                            solutions[j][solutionVariableIndices],
+                            solutionVariableIndices, solutionVariableNames,
+                            problemInterpreted.getVars(), mergeSolutions)
+                        # Preserve the classic side effect: in merge mode the loop-control
+                        # solutionLength tracks the current merged order (was inline before
+                        # the cut was added).
                         if mergeSolutions:
-                            geneSolutions = [solutionVariableNames[i] for i in solutionIndex]
-                            mergedSolutions = frozenset().union(*geneSolutions)
-                            solutionLength = len(mergedSolutions)
-                            if len(solutionIndex) <= solutionLength:
-                                pass
-                            else:
-                                auxGeneList = []
-                                for gene in geneSolutions:
-                                    if len(gene) == 1:
-                                        auxGeneList.append(gene)
-                                newSolutionIndex = [solutionIndex[geneSolutions.index(gene)] for gene in auxGeneList]
-                                if len(auxGeneList) == solutionLength:
-                                    currentSolution = [problemInterpreted.getVars()[solutionVariableIndices[i]] for i in newSolutionIndex]
-                                else: 
-                                    pass
-                                    #print("Possible minimality occurance")
-                                    #print("Individual solutions: ", geneSolutions)
-                                    #print("Individual genes found: ", auxGeneList)
-                                    #print('##################################')
-                            
-                            
-                        newConExpr = interface.LinExpr(np.ones(len(currentSolution)), currentSolution)
+                            solutionLength = len(geneSet)
+                        # Prevent this solution (and its supersets) from being found again.
+                        newConExpr = interface.LinExpr(np.ones(len(cutVars)), cutVars)
                         problemInterpreted.addLConstr(
                             newConExpr,
                             interface.GRB.LESS_EQUAL,
-                            len(currentSolution) - 1,
+                            cutRhs,
                             f"{str(uuid.uuid4())}_MultipleSol",
                         )
 
                         solutionCountPerLength = solutionCountPerLength + 1
-                        currentSolution = [solutionVariableNames[i] for i in solutionIndex]
                         solutionInformation = {}
-
-                        solutionInformation["solution"] = currentSolution
-                        if mergeSolutions:
-                            solutionInformation["solution"] = frozenset().union(*solutionInformation["solution"])
+                        solutionInformation["solution"] = geneSet
                         if removeRelated:
                             variablesToBound = problem.getContainedVariables(solutionInformation["solution"])
-                            afectedVars = 0
                             for name in variablesToBound:
                                 problemInterpreted.getVarByName(name).setAttr('UB', 0)
-                                afectedVars += 1
                         solLength = len(solutionInformation["solution"])
                         keyName = "order" + str(solLength) + "_" + str(solutionCountPerLength)
                         solutionInformation["order"] = keyName
@@ -374,6 +386,142 @@ class MinimalCutSetProblem:
                     else:
                         break
         return solutionDict
+
+    @staticmethod
+    def iterateOverSolverStagedLazy(problem, problemInterpreted, solver, solutionVariables,
+                                    bounds, mergeSolutions=True, verbose=0, handler=None,
+                                    minKOLength=1, exact=False, progressEvery=100):
+        """Staged lazy enumeration of gMCS (Gurobi only).
+
+        One lazy branch-and-bound tree per gene-count order ``k = minKOLength ..
+        MAX_SOLUTION_LENGTH``, with a cardinality constraint on ``sum(objective)``. Two
+        consequences:
+
+          * The objective is bounded to the current order, so the solver spends little
+            effort proving the bound -- the dominant cost of the classic per-solution
+            re-solve loop on hard models. The search is driven by a ``MIPSOL`` callback
+            that records each solution and rejects it (and its supersets) with ``cbLazy``.
+          * Enumerating orders 1..k in turn with prior stages' no-good cuts retained makes
+            every reported solution minimal by construction; no post-filter is required.
+
+        The per-solution cut/merge logic is the shared :func:`_extractGurobiSolution`, so
+        the gene sets and no-good cuts are identical to the classic ``iterateOverSolver``.
+
+        :param exact: If False (default), stage k is bounded by ``sum(objective) <= k``.
+            This can never over-constrain: any gMCS of order <= k stays feasible, so
+            completeness is guaranteed. If True, stage k is fixed to ``sum(objective) == k``
+            which explores a tighter tree but relies on the weighted objective equalling
+            the merged gene count for every solution -- faster on some models, but the
+            loose bound is the safe default when exactness is paramount.
+        :returns: ``(solutionDict, completed)`` with the same solutionDict shape as
+            ``iterateOverSolver``. ``completed`` is ``False`` if any stage hit the solver
+            time limit -- in that case the set is a lower bound, never a full enumeration.
+        """
+        if solver != "gurobi":
+            raise ValueError("iterateOverSolverStagedLazy is implemented for gurobi only")
+
+        logger = logging.getLogger(handler)
+        optModel, interface = problemInterpreted[0], problemInterpreted[1]
+        GRB = interface.GRB
+        MAX_SOLUTION_LENGTH = bounds["MAX_SOLUTION_LENGTH"]
+        MAX_SOLUTIONS = bounds["MAX_SOLUTIONS"]
+        solutionVariableIndices = solutionVariables["indices"]
+        solutionVariableNames = solutionVariables["names"]
+
+        # cbLazy requires this; set it defensively so the method is correct even if the
+        # caller did not put LazyConstraints in the solver parameters.
+        optModel.Params.LazyConstraints = 1
+        optModel.update()
+        allVars = optModel.getVars()
+        zpVars = [allVars[i] for i in solutionVariableIndices]
+
+        # Cardinality expression == the objective (gene-count weighting), reusing exactly
+        # what the forceLength feature builds. The upper bound caps the current stage's
+        # order; the lower bound (exact mode only) additionally pins it. Loose (<=k) can
+        # never exclude a valid gMCS of order <= k, so it is the safe default.
+        objective = problem.getObjective()
+        cardExpr = interface.LinExpr([float(c) for c in objective["coefficients"]],
+                                     [allVars[i] for i in objective["variables"]])
+        upper = optModel.addConstr(cardExpr <= minKOLength, name="stagedLazyUpper")
+        lower = optModel.addConstr(cardExpr >= minKOLength, name="stagedLazyLower") if exact else None
+        optModel.update()
+
+        solutionDict = {}
+        solutionCount = 0
+        completed = True
+        runStart = time.time()
+        # progress state shared with the callback: last report time and count, for the
+        # running rate. A single line every progressEvery solutions gives a tail-able
+        # heartbeat during the long order-k stages.
+        progress = {"lastTime": runStart, "lastCount": 0}
+
+        for k in range(minKOLength, MAX_SOLUTION_LENGTH + 1):
+            upper.setAttr("RHS", k)
+            if lower is not None:
+                lower.setAttr("RHS", k)
+            stageSolutions = []
+            baseCount = solutionCount
+
+            def callback(model, where, _stage=stageSolutions, _base=baseCount, _k=k):
+                if where != GRB.Callback.MIPSOL:
+                    return
+                subVector = np.array(model.cbGetSolution(zpVars))
+                _, geneSet, cutVars, cutRhs = _extractGurobiSolution(
+                    subVector, solutionVariableIndices, solutionVariableNames,
+                    allVars, mergeSolutions)
+                _stage.append((geneSet, cutVars, cutRhs))
+                model.cbLazy(interface.quicksum(cutVars) <= cutRhs)
+
+                running = _base + len(_stage)
+                if progressEvery and running % progressEvery == 0:
+                    now = time.time()
+                    rate = (running - progress["lastCount"]) / max(1e-9, now - progress["lastTime"])
+                    line = (f"{running:>8} gMCS  {(now - runStart) / 60:7.1f} min  "
+                            f"({rate:.2f}/s)  order={_k}")
+                    logger.info(line)
+                    if verbose > 0:
+                        print(line, flush=True)
+                    progress["lastTime"] = now
+                    progress["lastCount"] = running
+
+            startTime = time.time()
+            optModel.optimize(callback)
+            elapsed = time.time() - startTime
+            status = optModel.Status
+
+            # Make this stage's cuts permanent so later stages still exclude these
+            # solutions and their supersets, independent of cbLazy carrying across solves.
+            for geneSet, cutVars, cutRhs in stageSolutions:
+                optModel.addLConstr(
+                    interface.LinExpr(np.ones(len(cutVars)), cutVars),
+                    GRB.LESS_EQUAL, cutRhs, f"{str(uuid.uuid4())}_MultipleSol")
+            optModel.update()
+
+            for geneSet, cutVars, cutRhs in stageSolutions:
+                solLength = len(geneSet)
+                solutionDict[solutionCount] = {
+                    "solution": geneSet,
+                    "order": "order" + str(solLength) + "_" + str(solutionCount),
+                }
+                solutionCount += 1
+
+            stageLine = (f"  order {k}: {len(stageSolutions)} gMCS  "
+                         f"{(time.time() - runStart) / 60:.1f} min cumulative  "
+                         f"status={status}")
+            logger.info(stageLine)
+            logger.info(f"stagedLazyOrder{k}: {elapsed} count {len(stageSolutions)} "
+                        f"status {status}")
+            if verbose > 0:
+                print(stageLine, flush=True)
+
+            if status in (GRB.TIME_LIMIT, GRB.INTERRUPTED):
+                completed = False
+                logger.info(f"stagedLazy INCOMPLETE: order {k} hit the time limit")
+                break
+            if solutionCount >= MAX_SOLUTIONS:
+                break
+
+        return solutionDict, completed
 
     @staticmethod
     def getCorrespondingVariables(problem, solutions, realVariables, mergeSolutions=False):

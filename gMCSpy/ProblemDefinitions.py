@@ -737,6 +737,13 @@ def buildDictionaryMCSGeneProblem(
     targetB: float = 1e-3,
     cConstant: float = 1e-3,
     logPath: str = None,
+    indicatorEncoding: str = "indicator",
+    bigM: float = None,
+    cardinalityConstraint: bool = False,
+    vpUpperBound: float = None,
+    uBound: float = None,
+    fixZw: bool = False,
+    normalizeW: bool = False,
 ):
     """
     Builds the dictionary that defines the MILP problem to be solved by the MCS algorithm.
@@ -746,6 +753,21 @@ def buildDictionaryMCSGeneProblem(
     :param targetB: float. Desired activity level of the metabolic task to be disrupted.
     :param cConstant: float.  Used to activate w variable
     :param rxnToForce: list of strings. Reactions to be forced to be part of the solution. Empty by default.
+    :param indicatorEncoding: string. How the z/v coupling is encoded. See the block at the
+        end of this function. "indicator" (default) reproduces the historical behaviour.
+    :param bigM: float. Required by indicatorEncoding="bigM", ignored otherwise.
+    :param cardinalityConstraint: boolean. If true, and forceLength is false, states the
+        maxKOLength limit as an explicit row rather than leaving it to the solver's
+        Cutoff parameter. Does not change the solution set.
+    :param vpUpperBound: float. Finite cap on the vp duals. They are [0, inf) by default,
+        which leaves the solver no bound from which to derive a big-M. Required for
+        indicatorEncoding="bigM" to be a genuine convex hull rather than a loose
+        relaxation. Too small a value cuts valid dual certificates, so sweep it upward
+        and confirm the enumerated gMCS set stops changing.
+    :param uBound: float. Symmetric cap on the free dual u, i.e. u in [-uBound, uBound].
+    :param fixZw: boolean. Pin zw to 1 and drop the w/zw indicator pair. Valid because
+        forceBioCons already implies w >= cConstant/targetB > 0.
+    :param normalizeW: boolean. Also raise w's lower bound to cConstant/targetB.
 
     If the bounds are left as None they are ment to be infinity (None = Infinity), so each solver can interpret it as it is defined.
 
@@ -797,10 +819,19 @@ def buildDictionaryMCSGeneProblem(
     )
     vIndex["zw"] = [vIndex["zp"][-1] + 1]
 
+    # forceBioCons below reads -targetB*w <= -cConstant, i.e. w >= cConstant/targetB.
+    # With the default constants that is w >= 1, which is exactly ALPHA -- so the
+    # z=0 -> w<=0 indicator on w can never fire and zw is structurally always 1.
+    wLowerBound = cConstant / targetB
+
     name = "u_"
     for u in range(0, metabolites):
         problem.addVariable(
-            index=u, prefix=name, lb="infinity", ub="infinity", vtype="continuous"
+            index=u,
+            prefix=name,
+            lb="infinity" if uBound is None else -uBound,
+            ub="infinity" if uBound is None else uBound,
+            vtype="continuous",
         )
 
     name = "vp_"
@@ -809,14 +840,20 @@ def buildDictionaryMCSGeneProblem(
             index=vp,
             prefix=name,
             lb=0,
-            ub="infinity",
+            ub="infinity" if vpUpperBound is None else vpUpperBound,
             vtype="continuous",
             relatedTo=possibleKOs[i],
         )
 
     name = "w_"
     w = vp + 1
-    problem.addVariable(index=w, prefix=name, lb=0, ub="infinity", vtype="continuous")
+    problem.addVariable(
+        index=w,
+        prefix=name,
+        lb=wLowerBound if normalizeW else 0,
+        ub="infinity" if vpUpperBound is None else max(vpUpperBound, wLowerBound),
+        vtype="continuous",
+    )
 
     name = "zp_"
     for i, zp in enumerate(range(w + 1, w + numberOfPossibleKO + 1)):
@@ -824,12 +861,22 @@ def buildDictionaryMCSGeneProblem(
             index=zp, prefix=name, lb=0, ub=1, vtype="binary", relatedTo=possibleKOs[i]
         )
 
+    # zw is kept (and its index preserved) even when fixed, so that every other variable
+    # index -- which callers rely on to locate the zp_ block -- stays put.
     name = "zw_"
     zw = zp + 1
-    problem.addVariable(index=zw, prefix=name, lb=0, ub=1, vtype="binary")
+    problem.addVariable(
+        index=zw, prefix=name, lb=1 if fixZw else 0, ub=1, vtype="binary"
+    )
 
-    vGroups["v"] = vIndex["vp"] + vIndex["w"]
-    vGroups["z"] = vIndex["zp"] + vIndex["zw"]
+    if fixZw:
+        # Drop the w/zw pair from the indicator groups: with zw pinned to 1 and w
+        # bounded below by ALPHA, both of its indicators are vacuous.
+        vGroups["v"] = list(vIndex["vp"])
+        vGroups["z"] = list(vIndex["zp"])
+    else:
+        vGroups["v"] = vIndex["vp"] + vIndex["w"]
+        vGroups["z"] = vIndex["zp"] + vIndex["zw"]
 
     # Build constraints
     cIndex = {}
@@ -901,34 +948,72 @@ def buildDictionaryMCSGeneProblem(
         vars = objectiveVars
         coefs = list(numberNewGenesByKO.values())
         problem.addConstraint(constraintName, vars, coefs, "L", 1)
+    elif cardinalityConstraint:
+        # Nothing in this model otherwise says "a gMCS has at most maxKOLength genes".
+        # With forceLength off, that limit lives only in the solver's Cutoff parameter,
+        # which prunes nodes whose bound is already too large but takes no part in
+        # presolve, bound propagation or cut separation. Stating it as a row gives the
+        # solver something to propagate on, which should matter more the longer the
+        # gMCS being searched for. It cannot change the solution set: the objective is
+        # exactly this expression, so any solution excluded here was already excluded
+        # by Cutoff.
+        problem.addConstraint(
+            "cardinality",
+            objectiveVars,
+            list(numberNewGenesByKO.values()),
+            "L",
+            maxKOLength,
+        )
 
     constraintName = "forceBioCons_constraint"
     vars = vIndex["w"]
     coefs = [-targetB]
     problem.addConstraint(constraintName, vars, coefs, "L", -cConstant)
 
-    # Indicators
-    # z = 1  -->  v >= alpha
-    problemMethods.buildIndicatorsIntoProblem(
-        problem=problem,
-        prefix="indicatorZOn_",
-        variables=vGroups["v"],
-        indicatorVariables=vGroups["z"],
-        activeWhen=1,
-        sense="G",
-        constant=ALPHA,
-    )
+    # Couple each v variable to its z variable. Two implications are needed:
+    #   "on":  z = 1  -->  v >= ALPHA
+    #   "off": z = 0  -->  v <= 0
+    #
+    # Every v-group variable (vp_, w_) is declared with lb=0 above, so the "on"
+    # implication is exactly representable by the linear row v - ALPHA*z >= 0: at z=1 it
+    # gives v >= ALPHA, and at z=0 it degenerates to v >= 0, which the bound already
+    # enforces. That reformulation carries no big-M and so cannot weaken the relaxation.
+    # Only the "off" implication genuinely needs an indicator, a big-M or an SOS1.
+    if indicatorEncoding not in ("indicator", "onLinear", "bigM"):
+        raise ValueError(
+            f"Unknown indicatorEncoding {indicatorEncoding!r}, expected one of "
+            "'indicator', 'onLinear', 'bigM'"
+        )
 
-    # z = 0  -->  v <= 0
-    problemMethods.buildIndicatorsIntoProblem(
-        problem=problem,
-        prefix="indicatorZOff_",
-        variables=vGroups["v"],
-        indicatorVariables=vGroups["z"],
-        activeWhen=0,
-        sense="L",
-        constant=0,
-    )
+    if indicatorEncoding == "indicator":
+        problemMethods.buildIndicatorsIntoProblem(
+            problem=problem,
+            prefix="indicatorZOn_",
+            variables=vGroups["v"],
+            indicatorVariables=vGroups["z"],
+            activeWhen=1,
+            sense="G",
+            constant=ALPHA,
+        )
+    else:
+        for j, (v, z) in enumerate(zip(vGroups["v"], vGroups["z"])):
+            problem.addConstraint(f"zOnLinear_{j}", [v, z], [1, -ALPHA], "G", 0)
+
+    if indicatorEncoding == "bigM":
+        if bigM is None:
+            raise ValueError("indicatorEncoding='bigM' requires an explicit bigM value")
+        for j, (v, z) in enumerate(zip(vGroups["v"], vGroups["z"])):
+            problem.addConstraint(f"zOffBigM_{j}", [v, z], [1, -bigM], "L", 0)
+    else:
+        problemMethods.buildIndicatorsIntoProblem(
+            problem=problem,
+            prefix="indicatorZOff_",
+            variables=vGroups["v"],
+            indicatorVariables=vGroups["z"],
+            activeWhen=0,
+            sense="L",
+            constant=0,
+        )
 
     return problem
 
