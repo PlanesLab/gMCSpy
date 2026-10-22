@@ -25,6 +25,7 @@ from .MinimalCutSetClass import uuid
 from .MinimalCutSetClass import tqdm
 from .MinimalCutSetClass import logging
 from .MinimalCutSetClass import prepareModelNutrientGeneMCS
+from .Scaling import scaleModel
 
 from datetime import datetime
 import pandas as pd
@@ -156,6 +157,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
        
     if isNutrient:
         cobraModel = prepareModelNutrientGeneMCS(cobraModel, exchangeReactions)
+    cobraModel = scaleModel(cobraModel)
 
     logging.info(
         f"model: {cobraModel.id}, maxKOLength: {maxKOLength}, maxNumberGMCS: {maxNumberGMCS}, verbose: {verbose}, forceLength: {forceLength}, earlyStop: {earlyStop}, removeRelated: {removeRelated}, solver: {kwargs['solver']}"

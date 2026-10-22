@@ -825,13 +825,16 @@ def buildDictionaryMCSGeneProblem(
             relatedTo=possibleKOs[i],
         )
 
+    # w is fixed (not w >= wLowerBound): a certificate (u, v, w) stays valid under any
+    # positive rescaling, and leaving the scale free let the solver drift to |u| ~ 1e15,
+    # where float64 cancellation accepted certificates of non-cuts.
     name = "w_"
     w = vp + 1
     problem.addVariable(
         index=w,
         prefix=name,
-        lb=wLowerBound if normalizeW else 0,
-        ub="infinity" if vpUpperBound is None else max(vpUpperBound, wLowerBound),
+        lb=wLowerBound,
+        ub=wLowerBound,
         vtype="continuous",
     )
 

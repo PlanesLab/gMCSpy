@@ -345,6 +345,52 @@ class TestNestedGPRSolver:
         assert found == brute_force_gmcs(model, 3)
 
 
+class TestNumericalScaling:
+    # Unscaled genome-scale models (coefficients 1e-6..1e2) let the gMCS dual drift to
+    # |u| ~ 1e15 and accept certificates of non-cuts; w is now fixed and S is equilibrated.
+    @staticmethod
+    def cofactor_model():
+        """Biomass needs a cofactor at 1e-6 (yeast-GEM pattern), made by g3 or imported."""
+        return build_model([
+            ("EX_A", {"A": 1}, 0, 1000, None),
+            ("R1", {"A": -1, "B": 1}, 0, 1000, "g1 or g2"),
+            ("RC", {"A": -1, "C": 1}, 0, 1000, "g3"),
+            ("BIO", {"B": -1, "C": -1e-6}, 0, 1000, None),
+        ], "cofactor")
+
+    def test_scaling_is_exact_and_narrows_coefficients(self):
+        import numpy as np
+        from cobra.util.array import create_stoichiometric_matrix
+        from gMCSpy.Scaling import scaleModel
+
+        model = self.cofactor_model()
+        scaled = scaleModel(model)
+        before = create_stoichiometric_matrix(model)
+        after = create_stoichiometric_matrix(scaled)
+        nonzero = before != 0
+        ratio = after[nonzero] / before[nonzero]
+        assert np.all(ratio > 0) and np.all(np.log2(ratio) == np.round(np.log2(ratio)))
+        assert np.ptp(np.log2(np.abs(after[nonzero]))) < np.ptp(np.log2(np.abs(before[nonzero])))
+        assert brute_force_gmcs(scaled, 3) == brute_force_gmcs(model, 3) == {
+            frozenset({"g1", "g2"}), frozenset({"g3"})}
+
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    def test_cofactor_gmcs(self, label, kwargs):
+        assert set(gmcs_list(self.cofactor_model(), maxKOLength=3, **kwargs)) == {
+            frozenset({"g1", "g2"}), frozenset({"g3"})}
+
+    def test_w_is_fixed(self):
+        from gMCSpy.ProblemDefinitions import buildDictionaryMCSGeneProblem
+
+        model = self.cofactor_model()
+        gObject = buildGMatrix(model, 3, solver="gurobi")
+        problem = buildDictionaryMCSGeneProblem(
+            model, gObject["gDict"], gObject["gMatrix"], relationships=gObject["relationships"],
+            maxKOLength=3, numberNewGenesByKO=gObject["numberNewGenesByKO"])
+        w = [v for v in problem.getVariables().values() if v["name"].startswith("w_")]
+        assert len(w) == 1 and w[0]["lb"] == w[0]["ub"] == 1
+
+
 class TestIsoformSeparator:
     # KD-15: split(sep)[0] cut at the first separator, merging A_B_1 and A_C_1 into A.
     def test_rsplit(self):
