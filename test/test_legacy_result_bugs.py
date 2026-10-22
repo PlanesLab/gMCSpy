@@ -238,6 +238,92 @@ def test_random_models_match_brute_force(label, kwargs, seed):
     assert set(found) == expected
 
 
+TARGET_MODELS = {
+    # route1 g1 in parallel with route2 (g2 or g3), then essential g4
+    "isozymes": [
+        ("EX", {"X": 1}, 0, 1000, None),
+        ("R1", {"X": -1, "Y": 1}, 0, 1000, "g1"),
+        ("R2", {"X": -1, "Y": 1}, 0, 1000, "g2 or g3"),
+        ("R3", {"Y": -1, "Z": 1}, 0, 1000, "g4"),
+        ("BIO", {"Z": -1}, 0, 1000, None),
+    ],
+    # same with a complex on route2
+    "complex": [
+        ("EX", {"X": 1}, 0, 1000, None),
+        ("R1", {"X": -1, "Y": 1}, 0, 1000, "g1"),
+        ("R2", {"X": -1, "Y": 1}, 0, 1000, "g2 and g3"),
+        ("R3", {"Y": -1, "Z": 1}, 0, 1000, "g4"),
+        ("BIO", {"Z": -1}, 0, 1000, None),
+    ],
+}
+
+
+class TestTargetKOs:
+    # KD-12: the targeted formulation crashed, returned [] or non-minimal/duplicated sets.
+    # Expected: exactly the gMCS that contain at least one target gene.
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    @pytest.mark.parametrize("model_name", sorted(TARGET_MODELS))
+    @pytest.mark.parametrize("targets", [["g1"], ["g4"], ["g2"], ["g1", "g3"]])
+    def test_matches_brute_force(self, label, kwargs, model_name, targets):
+        model = build_model(TARGET_MODELS[model_name])
+        expected = {cut for cut in brute_force_gmcs(model, 3) if cut & set(targets)}
+        found = gmcs_list(build_model(TARGET_MODELS[model_name]), maxKOLength=3, targetKOs=targets, **kwargs)
+        assert len(found) == len(set(found))
+        assert set(found) == expected
+
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    @pytest.mark.parametrize("seed", range(15))
+    def test_random_models(self, label, kwargs, seed):
+        model = random_model(seed)
+        if model.slim_optimize(error_value=0.0) < 1e-6:
+            pytest.skip("model cannot grow")
+        target = sorted(g.id for g in model.genes)[seed % len(model.genes)]
+        expected = {cut for cut in brute_force_gmcs(model, 3) if target in cut}
+        found = gmcs_list(random_model(seed), maxKOLength=3, targetKOs=[target], **kwargs)
+        assert len(found) == len(set(found))
+        assert set(found) == expected
+
+    def test_unknown_gene_raises(self):
+        with pytest.raises(ValueError):
+            gmcs_list(build_model(TARGET_MODELS["isozymes"]), maxKOLength=3, solver="gurobi", targetKOs=["nope"])
+
+
+def nutrient_model():
+    """Two nutrients, either suffices. EX_A reversible, EX_B uptake-only."""
+    return build_model([
+        ("EX_A", {"A": -1}, -1000, 1000, None),
+        ("EX_B", {"B": -1}, -1000, 0, None),
+        ("RA", {"A": -1, "Y": 1}, 0, 1000, "g1"),
+        ("RB", {"B": -1, "Y": 1}, 0, 1000, "g2"),
+        ("BIO", {"Y": -1}, 0, 1000, None),
+    ])
+
+
+class TestNutrient:
+    # KD-14: uptake-only exchanges got no artificial gene, an explicit exchange list was
+    # ignored, and the caller's model was modified.
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    def test_all_exchanges(self, label, kwargs):
+        found = set(gmcs_list(nutrient_model(), maxKOLength=3, isNutrient=True, **kwargs))
+        assert found == {
+            frozenset({"g1", "g2"}),
+            frozenset({"g1", "B_ag"}),
+            frozenset({"A_ag", "g2"}),
+            frozenset({"A_ag", "B_ag"}),
+        }
+
+    def test_explicit_exchange_list(self):
+        found = set(gmcs_list(nutrient_model(), maxKOLength=3, isNutrient=True,
+                              exchangeReactions=["EX_A"], solver="gurobi"))
+        assert found == {frozenset({"g1", "g2"}), frozenset({"A_ag", "g2"})}
+
+    def test_caller_model_unchanged(self):
+        model = nutrient_model()
+        before = {r.id: (r.bounds, r.gene_reaction_rule) for r in model.reactions}
+        gmcs_list(model, maxKOLength=3, isNutrient=True, solver="gurobi")
+        assert {r.id: (r.bounds, r.gene_reaction_rule) for r in model.reactions} == before
+
+
 class TestIsoformSeparator:
     # KD-15: split(sep)[0] cut at the first separator, merging A_B_1 and A_C_1 into A.
     def test_rsplit(self):

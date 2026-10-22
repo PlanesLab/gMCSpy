@@ -6,7 +6,7 @@ from .ProblemInterpreters import beartype
 from .ProblemDefinitions import List
 from .ProblemDefinitions import scipy
 from .ProblemDefinitions import buildDictionaryMCSGeneProblem
-from .ProblemDefinitions import buildDictionaryMCSGeneTargetedProblem
+
 
 from .Validations import checkGMCSParallel
 
@@ -222,114 +222,67 @@ def calculateGeneMCS(cobraModel, **kwargs):
     # List of possible interventions
     gDictKeys = list(gDict.keys())
 
-    # If there are reactions to be knocked out, then the problem is a targeted problem
+    # targetKOs: return only the gMCS that contain at least one target gene. The standard
+    # gene problem gets one extra row (at least one target single-gene row selected), and
+    # the candidates are filtered for minimality with FBA after the enumeration: with the
+    # target row, smaller cuts without a target are never enumerated, so a candidate can
+    # be a superset of one. (The former targeted formulation sliced G but not gDict or the
+    # weights, and crashed or returned non-minimal and duplicated sets.)
+    targetGenes = []
     if targetKOs:
-        # Transform each element of the targetKOs into a frozenset to be able to compare it with the keys of the gDict
-        targetKOs = [frozenset([gene]) for gene in targetKOs]
-        # Check that the targetKOs is in the model
-        for gene in targetKOs:
-            isInModel = []
-            for intervention in gDictKeys:
-                if gene.issubset(intervention):
-                    isInModel.append(intervention)
-                    break
-            if not isInModel:
-                raise ValueError("One or more genes in targetKOs are not in the model")
+        modelGenes = {gene.id for gene in cobraModel.genes}
+        if isoformSeparator is not None:
+            modelGenes |= {gene.rsplit(isoformSeparator, 1)[0] for gene in modelGenes}
+        unknown = [gene for gene in targetKOs if gene not in modelGenes]
+        if unknown:
+            raise ValueError(f"Genes in targetKOs are not in the model: {unknown}")
+        targetGenes = [gene for gene in targetKOs if frozenset([gene]) in gDict]
+        blockNothing = [gene for gene in targetKOs if gene not in targetGenes]
+        if blockNothing:
+            logging.warning(f"targetKOs genes that block no reaction cannot be part of any gMCS: {blockNothing}")
+            warnings.warn(f"targetKOs genes that block no reaction cannot be part of any gMCS: {blockNothing}")
+        if not targetGenes:
+            handler = logging.handlers[0]
+            logging.removeHandler(handler)
+            handler.close()
+            return {}
 
-        # Check that geneSubset is not an empty list
-        if geneSubset:
-            # Transform each element of the geneSubset into a frozenset to be able to compare it with the keys of the gDict
-            geneSubset = [frozenset([gene]) for gene in geneSubset]
-            # Check that the geneSubset is in the model
-            for gene in geneSubset:
-                isInModel = []
-                for intervention in gDictKeys:
-                    if gene.issubset(intervention):
-                        isInModel.append(intervention)
-                        break
-                if not isInModel:
-                    raise ValueError(
-                        "One or more genes in geneSubset are not in the model"
-                    )
-        else:
-            geneSubset = []
-            for intervention in gDictKeys:
-                if len(intervention) == 1:
-                    geneSubset.append(intervention)
+    startTime = time.time()
+    problem = buildDictionaryMCSGeneProblem(
+        cobraModel,
+        gDict,
+        gMatrix,
+        relationships=relationships,
+        maxKOLength=maxKOLength,
+        forceLength=forceLength,
+        numberNewGenesByKO=numberNewGenesByKO,
+        verbose=verbose,
+        logPath=path
+    )
+    if targetGenes:
+        targetRows = {frozenset([gene]) for gene in targetGenes}
+        targetVariables = [
+            index for index, data in problem.getVariables().items()
+            if "zp_" in data["name"] and data["relatedTo"] in targetRows
+        ]
+        problem.addConstraint("targetKOs", targetVariables, [1] * len(targetVariables), "G", 1)
+    endTime = time.time()
+    logging.info("BuildProblem: " + str(endTime - startTime))
 
-        geneSubset = list(set(geneSubset).union(set(targetKOs)))
+    gurobi_default_params = {
+        "MIPFocus": 3,
+        "TimeLimit": max(1, timeLimit),
+        "Threads": numWorkers,
+        "PoolSolutions": 10000,
+        "PoolGap": 0.1,
+        "PoolSearchMode": 1,
+        "Cutoff": solverCutoff,
+        "Presolve": 1,
+        "PreSOS1Encoding": 2,
+        "Cuts": 2,
+        #"OptimalityTol": 1e-9,
+    }
 
-        # Build the problem object
-        startTime = time.time()
-        problem = buildDictionaryMCSGeneTargetedProblem(
-            cobraModel,
-            gDict,
-            gMatrix,
-            relationships=relationships,
-            geneSubset=geneSubset,
-            targetKOs=targetKOs,
-            maxKOLength=maxKOLength,
-            forceLength=forceLength,
-            numberNewGenesByKO=numberNewGenesByKO,
-            verbose=verbose,
-        )
-        endTime = time.time()
-        logging.info(
-            "Time taken to build problem: " + str(endTime - startTime) + " seconds"
-        )
-
-        gurobi_default_params = {
-            "MIPFocus": 1,
-            "TimeLimit": max(1, timeLimit),
-            "Threads": numWorkers,
-            "PoolSolutions": 10,
-            "PoolGap": 0.1,
-            "PoolSearchMode": 1,
-            "Cutoff": solverCutoff,
-            "Presolve": 1,
-            "PreSOS1Encoding": 2,
-            "Cuts": 2,
-        }
-
-    else:
-        startTime = time.time()
-        problem = buildDictionaryMCSGeneProblem(
-            cobraModel,
-            gDict,
-            gMatrix,
-            relationships=relationships,
-            maxKOLength=maxKOLength,
-            forceLength=forceLength,
-            numberNewGenesByKO=numberNewGenesByKO,
-            verbose=verbose,
-            logPath=path
-        )
-        endTime = time.time()
-        logging.info("BuildProblem: " + str(endTime - startTime))
-
-            
-        gurobi_default_params = {
-            "MIPFocus": 3,
-            "TimeLimit": max(1, timeLimit),
-            "Threads": numWorkers,
-            "PoolSolutions": 10000,
-            "PoolGap": 0.1,
-            "PoolSearchMode": 1,
-            "Cutoff": solverCutoff,
-            "Presolve": 1,
-            "PreSOS1Encoding": 2,
-            "Cuts": 2,
-            #"OptimalityTol": 1e-9,
-        }
-
-        # forceLength used to also set TimeLimit=500, overriding the user's timeLimit; a
-        # timed-out order was then skipped silently.
-        if forceLength:
-            gurobi_default_params['MIPFocus'] = 3
-
-        '''
-            gurobi_default_params["MIPFocus"] = 1
-        '''
     problem.setCharacteristicParameter(maxKOLength)
     problem.setModelName(cobraModel.id)
     problem.setLogPath(path)
@@ -433,6 +386,16 @@ def calculateGeneMCS(cobraModel, **kwargs):
             handler=handler,
             iterationProgress=True,
         )
+
+    if targetGenes:
+        # Keep only minimal cut sets: dropping any single gene must restore growth.
+        solutionDict = {
+            key: data for key, data in solutionDict.items()
+            if all(
+                not _isCutSet(cobraModel, data["solution"] - {gene}, isoformSeparator)
+                for gene in data["solution"]
+            )
+        }
     allEndTime = time.time()
 
     logging.info("totalTime: " + str(allEndTime - allTime))
@@ -895,6 +858,22 @@ def buildReactionFromBranch(
             model.add_reactions([reaction])
 
     return model
+
+
+def _isCutSet(cobraModel, genes, isoformSeparator=None, tolerance=1e-6):
+    """True if knocking out genes (merged isoform names allowed) stops growth, by FBA."""
+    if not genes:
+        return False
+    if isoformSeparator is None:
+        knockouts = [gene for gene in cobraModel.genes if gene.id in genes]
+    else:
+        knockouts = [gene for gene in cobraModel.genes
+                     if gene.id in genes or gene.id.rsplit(isoformSeparator, 1)[0] in genes]
+    with cobraModel:
+        for gene in knockouts:
+            gene.knock_out()
+        growth = cobraModel.slim_optimize(error_value=0.0)
+    return growth <= tolerance
 
 
 def mergeIsforms(isoformSeparator):

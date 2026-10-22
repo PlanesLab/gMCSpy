@@ -601,46 +601,54 @@ class MinimalCutSetProblem:
     
 
 def prepareModelNutrientGeneMCS(cobraModel: cobra.Model, exchangeReactions: List):
-            
-    # Perform a reaction splitting, we are only interested in the exchange reactions that bring metabolites into the system (inputs)
-    
-    # Check what reactions are reversible
+    """Add an artificial gene <metabolite>_ag to every nutrient uptake, so that removing a
+    nutrient from the medium can be part of a gMCS.
+
+    Works on a copy (the caller's model was modified in place). exchangeReactions selects
+    the exchanges by id (it used to be ignored); None means every exchange except the
+    objective reaction. The uptake direction comes from the stoichiometry and the bounds,
+    so uptake-only exchanges get a gene too (they used to be skipped). A reaction that can
+    both take up and secrete is split: the uptake moves to <id>_reverse with the gene.
+    """
+    cobraModel = cobraModel.copy()
+    objectiveReactions = {r.id for r in cobraModel.reactions if r.objective_coefficient != 0}
     if exchangeReactions is None:
-        listOfGeneRules = []
-        for reaction in cobraModel.exchanges:
-            if len(reaction.metabolites) > 1:
-                print("WARNING: Some exchange reactions exchange more than one metabolite.")
-            name  = list(reaction.metabolites.keys())[0].id + "_ag"
-            if reaction.reversibility:
-                # Split the reaction into two reactions, one for the forward direction and one for the reverse direction
-                newReaction = cobra.Reaction(reaction.id + "_reverse")
-                newReaction.name = reaction.id + "_reverse"
-                newReaction.lower_bound = 0
-                newReaction.upper_bound = 1000
-                for metabolite, value in reaction.metabolites.items():
-                    newReaction.add_metabolites({metabolite: -value})     
-                
-                # Check if reaction is input, if from nothing yields a product, then it is an input
-                if len(newReaction.reactants) == 0 and len(newReaction.products) == 1:
-                    newReaction.gene_reaction_rule = name
-                    listOfGeneRules.append(newReaction.id)
-                
-                # Last step add reaction to model 
-                cobraModel.add_reactions([newReaction])
-                
-                reaction.lower_bound = 0
-                if len(reaction.reactants) == 0 and len(reaction.products) == 1:
-                    reaction.gene_reaction_rule = name
-                    listOfGeneRules.append(reaction.id)
+        exchanges = [r for r in cobraModel.exchanges if r.id not in objectiveReactions]
+    else:
+        exchanges = [cobraModel.reactions.get_by_id(rid) for rid in exchangeReactions]
+
+    uptakeReactions = []
+    uptakeRules = []
+    for reaction in exchanges:
+        if len(reaction.metabolites) != 1:
+            warnings.warn(f"Exchange {reaction.id} does not exchange exactly one metabolite; skipped.")
+            continue
+        [(metabolite, coefficient)] = reaction.metabolites.items()
+        # Uptake is the flux direction that produces the metabolite.
+        canUptake = reaction.upper_bound > 0 if coefficient > 0 else reaction.lower_bound < 0
+        canSecrete = reaction.lower_bound < 0 if coefficient > 0 else reaction.upper_bound > 0
+        if not canUptake:
+            continue
+        # A transporter gene already on the exchange still applies: uptake needs both.
+        geneName = metabolite.id + "_ag"
+        rule = f"({reaction.gene_reaction_rule}) and {geneName}" if reaction.gene_reaction_rule else geneName
+
+        if canSecrete:
+            uptake = cobra.Reaction(reaction.id + "_reverse", name=reaction.id + "_reverse")
+            uptake.add_metabolites({metabolite: abs(coefficient)})
+            uptake.bounds = (0, reaction.upper_bound if coefficient > 0 else -reaction.lower_bound)
+            # The original exchange keeps only the secretion direction.
+            if coefficient > 0:
+                reaction.upper_bound = 0
             else:
-                if len(reaction.reactants) == 0 and len(reaction.products) == 0:
-                    reaction.gene_reaction_rule = name
-                    listOfGeneRules.append(reaction.id)
-                    
+                reaction.lower_bound = 0
+            uptakeReactions.append(uptake)
+            uptakeRules.append((uptake.id, rule))
+        else:
+            uptakeRules.append((reaction.id, rule))
 
+    cobraModel.add_reactions(uptakeReactions)
+    for reactionId, rule in uptakeRules:
+        cobraModel.reactions.get_by_id(reactionId).gene_reaction_rule = rule
 
-
-    print('===================================================================')
-    
-    
     return cobraModel
