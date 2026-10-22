@@ -8,6 +8,7 @@ from .ProblemDefinitions import List
 import logging
 import time
 import uuid
+import warnings
 from tqdm import tqdm
 
 
@@ -133,12 +134,29 @@ class MinimalCutSetProblem:
         # Creating companion matrix if K is requested
         if companionType == 'K':
             companionMatrix = eye(reactions, format="lil")
+        else:
+            companionMatrix = companionMatrix.tolil(copy=True)
+
+        if np.any(lb > 0):
+            warnings.warn(
+                "Reactions with a positive lower bound are treated as irreversible "
+                "(lb = 0); the forced flux is not part of the gMCS problem."
+            )
 
         negativeLbColumns = matrixS[:, splittingIndex]
-        matrixS = hstack((matrixS, -negativeLbColumns))
+        companionNegativeLbColumns = companionMatrix[:, splittingIndex]
 
-        negativeLbColumns = companionMatrix[:, splittingIndex]
-        companionMatrix = hstack((companionMatrix, negativeLbColumns))
+        # A reaction that cannot run forward (ub <= 0, e.g. closed lb = ub = 0 or
+        # reverse-only) has no forward direction. Zeroing its forward column makes that
+        # dual row vacuous, which is the same as removing the primal variable, while
+        # keeping column j = reaction j for the target index used downstream.
+        noForward = np.where(ub <= 0)[0]
+        matrixS = matrixS.tolil(copy=True)
+        matrixS[:, noForward] = 0
+        companionMatrix[:, noForward] = 0
+
+        matrixS = hstack((matrixS, -negativeLbColumns))
+        companionMatrix = hstack((companionMatrix, companionNegativeLbColumns))
         companionMatrix = companionMatrix.tolil()
 
         constraintMs = {}
@@ -178,6 +196,15 @@ class MinimalCutSetProblem:
         forceLength = bounds['forceLength']
         solutionVariableIndices = solutionVariables['indices']
         solutionVariableNames = solutionVariables['names']
+        # Pool solutions that differ only in optional zero-weight rows map to the same gene
+        # set; each gene set is reported once.
+        seenSolutions = set()
+
+        def warnTimeLimit():
+            message = ("A solve hit the time limit: the gMCS found so far are a LOWER BOUND, "
+                       "not a complete enumeration.")
+            logger.warning(message)
+            warnings.warn(message)
 
         if solver == "gurobi":
             OPTIMALITY = 2
@@ -187,6 +214,8 @@ class MinimalCutSetProblem:
                 startTime = time.time()
                 problemInterpreted.optimize()
                 endTime = time.time()
+                if problemInterpreted.Status == interface.GRB.TIME_LIMIT:
+                    warnTimeLimit()
                 numberOfSolutions = problemInterpreted.SolCount
                 if numberOfSolutions > 0:
                     solutions = {}
@@ -212,6 +241,10 @@ class MinimalCutSetProblem:
                             cutRhs,
                             f"{str(uuid.uuid4())}_MultipleSol",
                         )
+
+                        if frozenset(geneSet) in seenSolutions:
+                            continue
+                        seenSolutions.add(frozenset(geneSet))
 
                         solutionCountPerLength = solutionCountPerLength + 1
                         solutionInformation = {}
@@ -252,6 +285,11 @@ class MinimalCutSetProblem:
                 startTime = time.time()
                 problemInterpreted.populate_solution_pool()
                 endTime = time.time()
+                if problemInterpreted.solution.get_status() in (
+                    problemInterpreted.solution.status.MIP_time_limit_feasible,
+                    problemInterpreted.solution.status.MIP_time_limit_infeasible,
+                ):
+                    warnTimeLimit()
                 numberOfSolutions = problemInterpreted.solution.pool.get_num()
                 if numberOfSolutions > 0:
                     solutions = {}
@@ -304,6 +342,9 @@ class MinimalCutSetProblem:
                         rhs=[constraintLength],
                         senses=["L"],
                         names=[f"{'-'.join(names)}_MultipleSol"])
+                        if frozenset(solutionInformation["solution"]) in seenSolutions:
+                            continue
+                        seenSolutions.add(frozenset(solutionInformation["solution"]))
                         if removeRelated:
                             variablesToBound = problem.getContainedVariables(solutionInformation["solution"])
                             for name in variablesToBound:
@@ -346,6 +387,8 @@ class MinimalCutSetProblem:
                     print("Error in SCIP")
                     notSkip = False
                 endTime = time.time()
+                if notSkip and problemInterpreted.getStatus() == "timelimit":
+                    warnTimeLimit()
 
      
                 if problemInterpreted.getStatus() == "optimal" and notSkip:
@@ -356,9 +399,16 @@ class MinimalCutSetProblem:
                             pos = int(j.name.split('_')[1])
                             variables.append(pos)
                             solution.append(solutionVariableNames[solutionVariableIndices.index(pos)])
-                            coefficients = [1 for i in variables]
 
-                    problem.addConstraint(f"{str(uuid.uuid4())}_MultipleSol", variables, coefficients, "L", len(variables) - 1)
+                    # Cut on the single-gene rows when they explain the whole gene set, as the
+                    # gurobi/cplex branches do, so that gene supersets are excluded too.
+                    cutVariables = variables
+                    if mergeSolutions:
+                        singleGeneVariables = [v for v, row in zip(variables, solution) if len(row) == 1]
+                        if len(singleGeneVariables) == len(frozenset().union(*solution)):
+                            cutVariables = singleGeneVariables
+                    coefficients = [1 for _ in cutVariables]
+                    problem.addConstraint(f"{str(uuid.uuid4())}_MultipleSol", cutVariables, coefficients, "L", len(cutVariables) - 1)
                     [problemInterpreted, interface] = problem.interpretProblem(verbose=0)
                     #problemInterpreted.writeProblem(f"model_scip.lp")
                     keyName = "order_" + str(len(solution)) + "_" + str(solutionCountPerLength)

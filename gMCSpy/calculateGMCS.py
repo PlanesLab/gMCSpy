@@ -97,7 +97,11 @@ def calculateGeneMCS(cobraModel, **kwargs):
     solverCutoff = maxKOLength
     maxNumberGMCS = kwargs.get('maxNumberGMCS', 1e6)
     verbose = kwargs.get('verbose', 0)
-    earlyStop = kwargs.get("earlyStop", True)
+    # earlyStop stops after the first solve that reaches maxKOLength, but that solve's pool
+    # need not hold every gMCS of that order, so it can silently miss most of them.
+    earlyStop = kwargs.get("earlyStop", False)
+    if earlyStop:
+        warnings.warn("earlyStop=True can miss gMCS of order maxKOLength; the result may be incomplete.")
     removeRelated = kwargs.get("removeRelated", False)
     isoformSeparator = kwargs.get("isoformSeparator", None)
     targetKOs = kwargs.get("targetKOs", None)
@@ -110,7 +114,8 @@ def calculateGeneMCS(cobraModel, **kwargs):
     timeLimit = kwargs.get("timeLimit", 1e4)
     solver = kwargs["solver"]
     user_defined_params = kwargs.get("params", None)
-    enumeration = kwargs.get("enumeration", "classic")
+    # Staged-lazy (complete by construction) is the default on gurobi; classic is opt-in.
+    enumeration = kwargs.get("enumeration", "staged-lazy" if solver == "gurobi" else "classic")
 
     if enumeration == "staged-lazy" and solver != "gurobi":
         warnings.warn(
@@ -317,10 +322,11 @@ def calculateGeneMCS(cobraModel, **kwargs):
             #"OptimalityTol": 1e-9,
         }
 
+        # forceLength used to also set TimeLimit=500, overriding the user's timeLimit; a
+        # timed-out order was then skipped silently.
         if forceLength:
             gurobi_default_params['MIPFocus'] = 3
-            gurobi_default_params['TimeLimit'] = 500
-            
+
         '''
             gurobi_default_params["MIPFocus"] = 1
         '''
@@ -641,7 +647,17 @@ def simplifyGMatrix(gMatrixDict: defaultdict, __addToDict) -> defaultdict:
                                      # Add the intersection as a key of the dictionary
                                     __addToDict(simpG, intersection, [])
                                     simpG[intersection] = []
-                                
+
+    # Give every gene its own (possibly empty) single-gene row. Then every multi-gene row
+    # is fully covered by its single-gene subset rows, so relatedRows gives it weight 0
+    # and the objective counts each gene exactly once (pairwise intersections alone
+    # double-counted shared genes). It also lets the no-good cuts act on genes rather than
+    # rows, which is what excludes every gene superset of a found gMCS.
+    for intervention in multipleGeneInterventions:
+        for gene in intervention:
+            singleGene = frozenset([gene])
+            if singleGene not in simpG:
+                simpG[singleGene] = []
 
     return simpG
 
@@ -907,7 +923,9 @@ def mergeIsforms(isoformSeparator):
     elif isinstance(isoformSeparator, str):
 
         def __addToDict(dict: defaultdict, key: List, value) -> None:
-            key = [name.split(isoformSeparator)[0] for name in key]
+            # rsplit: strip only the trailing isoform suffix (split cut at the first
+            # separator, merging distinct genes such as A_B_1 and A_C_1 into A).
+            key = [name.rsplit(isoformSeparator, 1)[0] for name in key]
             key = frozenset(key)
             if key in dict:
                dict[key].append(value)

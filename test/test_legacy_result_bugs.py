@@ -1,30 +1,90 @@
 # Regression tests for result-affecting bugs found while planning central-framework
-# (KD-1, KD-2, KD-3 in central-framework/KNOWN_DIFFERENCES.md).
+# (KD-* in central-framework/KNOWN_DIFFERENCES.md). Expected gMCS come from a brute-force
+# oracle: knock out every gene subset in cobra and keep the minimal sets that stop growth.
+import itertools
+import random
+
 import cobra
 import pytest
 
-from gMCSpy.calculateGMCS import buildGMatrix, calculate_GPR_MCS, calculateGeneMCS, mergeIsforms
+from gMCSpy.calculateGMCS import (
+    buildGMatrix,
+    calculate_GPR_MCS,
+    calculateGeneMCS,
+    mergeIsforms,
+)
+from gMCSpy.ProblemDefinitions import buildDictionaryFBAWithDeletions
 
 solvers = ["cplex", "gurobi"]
+# (label, kwargs) for every enumeration path that must match the oracle
+enumerations = [
+    ("gurobi staged-lazy", dict(solver="gurobi")),
+    ("gurobi classic", dict(solver="gurobi", enumeration="classic")),
+    ("cplex", dict(solver="cplex")),
+    ("scip", dict(solver="scip")),
+]
+
+
+def build_model(reactions, model_id="toy"):
+    """reactions: list of (id, {met: coef}, lb, ub, gpr or None); objective is BIO."""
+    model = cobra.Model(model_id)
+    metabolites = {}
+    cobra_reactions = []
+    for rid, stoichiometry, lb, ub, _ in reactions:
+        reaction = cobra.Reaction(rid, lower_bound=lb, upper_bound=ub)
+        for met in stoichiometry:
+            metabolites.setdefault(met, cobra.Metabolite(met, compartment="c"))
+        reaction.add_metabolites({metabolites[m]: c for m, c in stoichiometry.items()})
+        cobra_reactions.append(reaction)
+    model.add_reactions(cobra_reactions)
+    for rid, _, _, _, gpr in reactions:
+        if gpr:
+            model.reactions.get_by_id(rid).gene_reaction_rule = gpr
+    model.objective = "BIO"
+    return model
+
+
+def brute_force_gmcs(model, max_length, tol=1e-6):
+    genes = sorted(g.id for g in model.genes)
+    cuts = []
+    for k in range(1, max_length + 1):
+        for subset in itertools.combinations(genes, k):
+            if any(cut <= set(subset) for cut in cuts):
+                continue
+            with model:
+                for gene in subset:
+                    model.genes.get_by_id(gene).knock_out()
+                growth = model.slim_optimize(error_value=0.0)
+            if growth <= tol:
+                cuts.append(frozenset(subset))
+    return set(cuts)
+
+
+def gmcs_list(model, **kwargs):
+    kwargs.setdefault("saveSolutions", False)
+    return [frozenset(v["solution"]) for v in calculateGeneMCS(model, **kwargs).values()]
 
 
 def isozyme_model(n_isozymes):
     """EX -> A -(R1: g1 or ... or gn)-> B -(R2: g0)-> C -> BIO. gMCS: {g0}, {g1..gn}."""
-    model = cobra.Model(f"toy_isozymes{n_isozymes}")
-    a, b, c = (cobra.Metabolite(m, compartment="c") for m in "ABC")
-    ex = cobra.Reaction("EX_A", lower_bound=0, upper_bound=10)
-    ex.add_metabolites({a: 1})
-    r1 = cobra.Reaction("R1", lower_bound=0, upper_bound=1000)
-    r1.add_metabolites({a: -1, b: 1})
-    r2 = cobra.Reaction("R2", lower_bound=0, upper_bound=1000)
-    r2.add_metabolites({b: -1, c: 1})
-    bio = cobra.Reaction("BIO", lower_bound=0, upper_bound=1000)
-    bio.add_metabolites({c: -1})
-    model.add_reactions([ex, r1, r2, bio])
-    r1.gene_reaction_rule = " or ".join(f"g{i}" for i in range(1, n_isozymes + 1))
-    r2.gene_reaction_rule = "g0"
-    model.objective = "BIO"
-    return model
+    return build_model([
+        ("EX_A", {"A": 1}, 0, 10, None),
+        ("R1", {"A": -1, "B": 1}, 0, 1000, " or ".join(f"g{i}" for i in range(1, n_isozymes + 1))),
+        ("R2", {"B": -1, "C": 1}, 0, 1000, "g0"),
+        ("BIO", {"C": -1}, 0, 1000, None),
+    ], f"toy_isozymes{n_isozymes}")
+
+
+def chains_model(k, n):
+    """k parallel routes A -> B, each a chain of n reactions with distinct genes."""
+    reactions = [("EX", {"A": 1}, 0, 1000, None), ("BIO", {"B": -1}, 0, 1000, None)]
+    for i in range(k):
+        previous = "A"
+        for j in range(n):
+            following = "B" if j == n - 1 else f"P{i}_{j}"
+            reactions.append((f"R{i}_{j}", {previous: -1, following: 1}, 0, 1000, f"p{i}g{j}"))
+            previous = following
+    return build_model(reactions, f"chains{k}x{n}")
 
 
 class TestMaxKOLengthHonoured:
@@ -39,8 +99,7 @@ class TestMaxKOLengthHonoured:
 
     @pytest.mark.parametrize("solver", solvers)
     def test_four_gene_gmcs_found(self, solver):
-        solutions = calculateGeneMCS(isozyme_model(4), maxKOLength=4, solver=solver)
-        found = {frozenset(v["solution"]) for v in solutions.values()}
+        found = set(gmcs_list(isozyme_model(4), maxKOLength=4, solver=solver))
         assert found == {frozenset({"g0"}), frozenset({"g1", "g2", "g3", "g4"})}
 
 
@@ -73,3 +132,135 @@ class TestNestedGPRLength:
 
     def test_short_cuts_unchanged(self):
         assert self.cuts("(a and b) or c or d", maxKOLength=3) == {frozenset("acd"), frozenset("bcd")}
+
+
+class TestAgainstBruteForce:
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    @pytest.mark.parametrize("k,n", [(2, 4), (3, 3)])
+    def test_deepest_order_complete(self, label, kwargs, k, n):
+        # KD-8: gurobi's default earlyStop returned 1 of 16 / 1 of 27 gMCS here.
+        model = chains_model(k, n)
+        assert set(gmcs_list(model, maxKOLength=k, **kwargs)) == brute_force_gmcs(model, k)
+
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    @pytest.mark.parametrize("r2_bounds,r2_gpr", [((0, 0), "g2"), ((-1000, 0), "g2"), ((0, 0), None)])
+    def test_reaction_bounds(self, label, kwargs, r2_bounds, r2_gpr):
+        # KD-9: closed and reverse-only reactions were treated as forward-capable.
+        model = build_model([
+            ("EX", {"X": 1}, 0, 1000, None),
+            ("R1", {"X": -1, "Y": 1}, 0, 1000, "g1"),
+            ("R2", {"X": -1, "Y": 1}, *r2_bounds, r2_gpr),
+            ("BIO", {"Y": -1}, 0, 1000, None),
+        ])
+        assert set(gmcs_list(model, maxKOLength=3, **kwargs)) == {frozenset({"g1"})}
+
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    def test_no_gene_supersets(self, label, kwargs):
+        # KD-10: no-good cuts on rows let {g2,g4,g6,g7} through besides {g2,g6,g7}.
+        model = build_model([
+            ("EX", {"A": 1}, 0, 1000, None),
+            ("R1", {"A": -1, "B": 1}, 0, 1000, "g7 or g2"),
+            ("R6", {"A": -1, "B": 1}, 0, 1000, "(g4 and g7) or g6"),
+            ("BIO", {"B": -1}, 0, 1000, None),
+        ])
+        assert set(gmcs_list(model, maxKOLength=4, **kwargs)) == {frozenset({"g2", "g6", "g7"})}
+
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    def test_gene_count_weights(self, label, kwargs):
+        # KD-11: pairwise-only intersections double-counted A, hiding all 3 gMCS at length 3.
+        model = build_model([
+            ("EX", {"X": 1}, 0, 1000, None),
+            ("R1", {"X": -1, "Y": 1}, 0, 1000, "A or B or C"),
+            ("R2", {"Y": -1, "Z": 1}, 0, 1000, "A or B or D"),
+            ("R3", {"Z": -1, "W": 1}, 0, 1000, "A or C or D"),
+            ("BIO", {"W": -1}, 0, 1000, None),
+        ])
+        assert set(gmcs_list(model, maxKOLength=3, **kwargs)) == brute_force_gmcs(model, 3)
+
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    def test_no_duplicates(self, label, kwargs):
+        # KD-13: CPLEX reported {g1,g2} twice (optional zero-weight row in the pool).
+        model = build_model([
+            ("EX", {"A": 1}, 0, 1000, None),
+            ("Ra", {"A": -1, "B": 1}, 0, 1000, "g1"),
+            ("Rb", {"A": -1, "B": 1}, 0, 1000, "g2"),
+            ("Rc", {"A": -1, "C": 1}, 0, 1000, "g1 or g2"),
+            ("SC", {"C": -1}, 0, 1000, None),
+            ("BIO", {"B": -1}, 0, 1000, None),
+        ])
+        found = gmcs_list(model, maxKOLength=3, **kwargs)
+        assert len(found) == len(set(found))
+        assert set(found) == brute_force_gmcs(model, 3)
+
+    @pytest.mark.parametrize("label,kwargs", enumerations)
+    def test_objective_coefficient_not_one(self, label, kwargs):
+        # KD-16: objectiveVector.index(1) crashed when the coefficient was not exactly 1.
+        model = isozyme_model(2)
+        model.objective = {model.reactions.BIO: 2.5}
+        assert set(gmcs_list(model, maxKOLength=2, **kwargs)) == brute_force_gmcs(model, 2)
+
+
+def random_model(seed, n_metabolites=6, n_reactions=10, n_genes=8):
+    rng = random.Random(seed)
+    genes = [f"g{i}" for i in range(n_genes)]
+    mets = [f"M{i}" for i in range(n_metabolites)]
+
+    def random_gpr():
+        t = rng.random()
+        if t < 0.1:
+            return None
+        if t < 0.25:
+            return rng.choice(genes)
+        if t < 0.75:
+            return " or ".join(rng.sample(genes, rng.randint(2, 3)))
+        a, b, c = rng.sample(genes, 3)
+        return rng.choice([f"({a} and {b}) or {c}", f"({a} or {b}) and {c}"])
+
+    reactions = [("EX", {"M0": 1}, 0, 1000, None)]
+    for i in range(n_reactions):
+        a, b = rng.sample(mets, 2)
+        u = rng.random()
+        lb, ub = (-1000, 1000) if u < 0.3 else (0, 0) if u < 0.4 else (-1000, 0) if u < 0.45 else (0, 1000)
+        reactions.append((f"R{i}", {a: -1, b: 1}, lb, ub, random_gpr()))
+    reactions.append(("BIO", {mets[-1]: -1}, 0, 1000, None))
+    return build_model(reactions, f"rand{seed}")
+
+
+@pytest.mark.parametrize("label,kwargs", enumerations)
+@pytest.mark.parametrize("seed", range(40))
+def test_random_models_match_brute_force(label, kwargs, seed):
+    model = random_model(seed)
+    if model.slim_optimize(error_value=0.0) < 1e-6:
+        pytest.skip("model cannot grow")
+    expected = brute_force_gmcs(model, 3)
+    found = gmcs_list(random_model(seed), maxKOLength=3, **kwargs)
+    assert len(found) == len(set(found))
+    assert set(found) == expected
+
+
+class TestIsoformSeparator:
+    # KD-15: split(sep)[0] cut at the first separator, merging A_B_1 and A_C_1 into A.
+    def test_rsplit(self):
+        model = build_model([
+            ("EX", {"A": 1}, 0, 1000, None),
+            ("R1", {"A": -1, "B": 1}, 0, 1000, "A_B_1 or A_C_1"),
+            ("BIO", {"B": -1}, 0, 1000, None),
+        ])
+        gObject = buildGMatrix(model, 3, isoformSeparator="_", solver="gurobi")
+        assert frozenset({"A_B", "A_C"}) in gObject["gDict"]
+
+
+class TestValidatorGPREvaluation:
+    # KD-18: the FBA validator evaluated GPRs by substring replace + eval, so knocking out
+    # g1 also rewrote g10 ("False0").
+    def test_gene_name_prefix(self):
+        model = build_model([
+            ("EX", {"A": 1}, 0, 1000, None),
+            ("R1", {"A": -1, "B": 1}, 0, 1000, "g1 or g10"),
+            ("BIO", {"B": -1}, 0, 1000, None),
+        ])
+        problem = buildDictionaryFBAWithDeletions(model, ["g1"], None)
+        problem.setSolver("gurobi")
+        optModel, _ = problem.interpretProblem(parameters={"OutputFlag": 0})
+        optModel.optimize()
+        assert optModel.ObjVal > 1e-6  # g10 still catalyses R1

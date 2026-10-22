@@ -9,6 +9,20 @@ from .MinimalCutSetClass import MinimalCutSetProblem
 from .OptimizationProblem import OptimizationProblem
 
 
+def _objectiveIndex(objectiveVector):
+    """Index of the single reaction with a non-zero objective coefficient (the target).
+
+    Replaces objectiveVector.index(1), which crashed when the coefficient was not exactly 1.
+    """
+    nonZero = np.flatnonzero(objectiveVector)
+    if len(nonZero) != 1:
+        raise ValueError(
+            f"The model objective must have exactly one reaction with a non-zero "
+            f"coefficient (the target reaction); found {len(nonZero)}."
+        )
+    return int(nonZero[0])
+
+
 def buildDictionaryMCSProblem(
     cobraModel: cobra.Model,
     forceLength: bool,
@@ -47,7 +61,7 @@ def buildDictionaryMCSProblem(
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = objectiveVector.index(1)
+    indexC = _objectiveIndex(objectiveVector)
 
     # Target vector
     t = np.zeros(reactions)
@@ -222,7 +236,7 @@ def buildDictionaryMCSTargetedProblem(
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = objectiveVector.index(1)
+    indexC = _objectiveIndex(objectiveVector)
 
     # Target vector
     t = np.zeros(nUpdated)
@@ -502,7 +516,7 @@ def buildDictionaryFBA(cobraModel: cobra.Model):
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = [objectiveVector.index(1)]
+    indexC = [_objectiveIndex(objectiveVector)]
 
     problem.addObjective(indexC, np.ones(len(indexC)), sense="maximize")
 
@@ -529,58 +543,24 @@ def buildDictionaryFBAWithDeletions(
 
     if isoformSeparator is not None:
         # Get the GPR of each reaction
-        GPRs = [
-            [r, r.gpr]
-            for r in cobraModel.reactions
-            for gene in r.gpr.genes
-            if gene.split(isoformSeparator)[0] in gMCS
-        ]
-        # modelReactions = cobraModel.reactions
-        # modelGenes = [g.id for g in cobraModel.genes]
+        # GPR.eval replaces the old substring replace + eval, which corrupted gene names
+        # that contain another gene's name (g1 inside g10).
         reactionsToKnockOut = []
-        for reaction, gpr in GPRs:
-            if len(gpr.genes) == 1:
+        for reaction in cobraModel.reactions:
+            knockouts = {
+                gene for gene in reaction.gpr.genes
+                if gene.rsplit(isoformSeparator, 1)[0] in gMCS
+            }
+            if knockouts and not reaction.gpr.eval(knockouts):
                 reactionsToKnockOut.append(reaction.id)
-            else:
-                expr = gpr.to_string()
-                for gene in gpr.genes:
-                    # Substitute the gene name for True in the expression
-                    geneSplit = gene.split(isoformSeparator)[0]
-                    if geneSplit in gMCS:
-                        expr = expr.replace(gene, "False")
-                    else:
-                        expr = expr.replace(gene, "True")
-                # Evaluate the expression
-                outcome = eval(expr)
-                if not outcome:
-                    reactionsToKnockOut.append(reaction.id)
 
     else:
         # Get the GPR of each reaction
-        GPRs = [
-            [r, r.gpr]
-            for r in cobraModel.reactions
-            for gene in gMCS
-            if gene in r.gpr.genes
-        ]
-        # modelReactions = cobraModel.reactions
-        # modelGenes = [g.id for g in cobraModel.genes]
         reactionsToKnockOut = []
-        for reaction, gpr in GPRs:
-            if len(gpr.genes) == 1:
+        for reaction in cobraModel.reactions:
+            knockouts = {gene for gene in reaction.gpr.genes if gene in gMCS}
+            if knockouts and not reaction.gpr.eval(knockouts):
                 reactionsToKnockOut.append(reaction.id)
-            else:
-                expr = gpr.to_string()
-                for gene in gpr.genes:
-                    # Substitute the gene name for True in the expression
-                    if gene in gMCS:
-                        expr = expr.replace(gene, "False")
-                    else:
-                        expr = expr.replace(gene, "True")
-                # Evaluate the expression
-                outcome = eval(expr)
-                if not outcome:
-                    reactionsToKnockOut.append(reaction.id)
 
     """     if isoformSeparator is not None:
         for gene in cobraModel.genes:
@@ -644,7 +624,7 @@ def buildDictionaryFBAWithDeletions(
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = [objectiveVector.index(1)]
+    indexC = [_objectiveIndex(objectiveVector)]
 
     problem.addObjective(indexC, np.ones(len(indexC)), sense="maximize")
 
@@ -718,7 +698,7 @@ def buildDictionaryReactionsFBAWithDeletions(
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = [objectiveVector.index(1)]
+    indexC = [_objectiveIndex(objectiveVector)]
 
     problem.addObjective(indexC, np.ones(len(indexC)), sense="maximize")
 
@@ -799,7 +779,7 @@ def buildDictionaryMCSGeneProblem(
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = objectiveVector.index(1)
+    indexC = _objectiveIndex(objectiveVector)
 
     # Target vector
     t = np.zeros(reactions)
@@ -1078,7 +1058,7 @@ def buildDictionaryMCSGeneTargetedProblem(
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = objectiveVector.index(1)
+    indexC = _objectiveIndex(objectiveVector)
 
     # Target vector
     t = np.zeros(reactions)
@@ -1373,7 +1353,7 @@ def buildDictionaryRegNetwork(
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = objectiveVector.index(1)
+    indexC = _objectiveIndex(objectiveVector)
 
     # Target vector
     t = np.zeros(reactions)
@@ -1576,7 +1556,7 @@ def buildDictionaryDossageNetwork(
 
     # Objective vector of model
     objectiveVector = [r.objective_coefficient for r in cobraModel.reactions]
-    indexC = objectiveVector.index(1)
+    indexC = _objectiveIndex(objectiveVector)
 
     # Target vector
     t = np.zeros(reactions)
