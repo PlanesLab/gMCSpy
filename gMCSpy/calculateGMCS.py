@@ -187,7 +187,15 @@ def calculateGeneMCS(cobraModel, **kwargs):
 
         gMatrix = createSparseMatrix(gDict, cobraModel.reactions)
         [relationships, numberNewGenesByKO] = relatedRows(gDict, mergeIsforms(isoformSeparator))
-   
+
+    # No intervention can block any reaction: there are no gMCS, and building the MILP
+    # with an empty G matrix crashes.
+    if len(gDict) == 0:
+        logging.warning("The G matrix is empty: no gene knockout blocks any reaction, so there are no gMCS.")
+        handler = logging.handlers[0]
+        logging.removeHandler(handler)
+        handler.close()
+        return {}
 
 
     # Initialize the genes to be knocked out, e.g. genes that you want to be part of the gMCS
@@ -495,18 +503,19 @@ def buildGMatrix(
 
     """
     
-    maxKOLength = kwargs.get('maxKOLength', 3)
+    # maxKOLength used to be overwritten here with kwargs.get('maxKOLength', 3), which
+    # always capped the G matrix at 3 genes (callers pass it positionally).
     dictManager = mergeIsforms(isoformSeparator)
     solver = kwargs.get('solver', 'gurobi')
-    
+
     modelReactions = [reaction.id for reaction in cobraModel.reactions]
     # create a dictionary with the gpr rules associated to each reaction to get a unique list of gprs
     gprDict = getGPRDict(cobraModel)
     gDict = {}
-    
+
     # Analyze the GPRs to find the perturbations that stop the reactions
     for key, value in tqdm(gprDict.items()):
-            calculate_GPR_MCS(gDict, value['gpr'], value['reactions'], dictManager)
+            calculate_GPR_MCS(gDict, value['gpr'], value['reactions'], dictManager, maxKOLength)
 
 
     # Filter out the interventions that are larger than the maxKOLength
@@ -546,7 +555,7 @@ def buildGMatrix(
     }
     return gObject
 
-def calculate_GPR_MCS(gDict, gpr, reactions, addToDict):
+def calculate_GPR_MCS(gDict, gpr, reactions, addToDict, maxKOLength=1e6):
     # get the genes from the gpr rule
     stringGPR = gpr.to_string()
     genes = [gene for gene in gpr.genes]
@@ -569,7 +578,9 @@ def calculate_GPR_MCS(gDict, gpr, reactions, addToDict):
     # And and or
     else:
         treeGenes, model = parseGPRToModel(stringGPR, 'gpr', None)
-        solutionDict = calculateMCS(model, MAX_LENGTH_MCS=5, MAX_MCS=1e6, rxnSubset=list(treeGenes))
+        # A cut can't use more genes than the GPR has; the old hardcoded 5 lost longer cuts.
+        maxLengthGPR = int(min(maxKOLength, len(genes)))
+        solutionDict = calculateMCS(model, MAX_LENGTH_MCS=maxLengthGPR, MAX_MCS=1e6, rxnSubset=list(treeGenes))
         for _, data in solutionDict.items():
             key = frozenset(data["solution"])
             [addToDict(gDict, key, reaction) for reaction in reactions]
