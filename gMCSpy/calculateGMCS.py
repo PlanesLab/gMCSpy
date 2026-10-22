@@ -484,7 +484,7 @@ def buildGMatrix(
 
     # Analyze the GPRs to find the perturbations that stop the reactions
     for key, value in tqdm(gprDict.items()):
-            calculate_GPR_MCS(gDict, value['gpr'], value['reactions'], dictManager, maxKOLength)
+            calculate_GPR_MCS(gDict, value['gpr'], value['reactions'], dictManager, maxKOLength, solver)
 
 
     # Filter out the interventions that are larger than the maxKOLength
@@ -524,7 +524,7 @@ def buildGMatrix(
     }
     return gObject
 
-def calculate_GPR_MCS(gDict, gpr, reactions, addToDict, maxKOLength=1e6):
+def calculate_GPR_MCS(gDict, gpr, reactions, addToDict, maxKOLength=1e6, solver="gurobi"):
     # get the genes from the gpr rule
     stringGPR = gpr.to_string()
     genes = [gene for gene in gpr.genes]
@@ -549,7 +549,9 @@ def calculate_GPR_MCS(gDict, gpr, reactions, addToDict, maxKOLength=1e6):
         treeGenes, model = parseGPRToModel(stringGPR, 'gpr', None)
         # A cut can't use more genes than the GPR has; the old hardcoded 5 lost longer cuts.
         maxLengthGPR = int(min(maxKOLength, len(genes)))
-        solutionDict = calculateMCS(model, MAX_LENGTH_MCS=maxLengthGPR, MAX_MCS=1e6, rxnSubset=list(treeGenes))
+        # Use the caller's solver: this used to fall back to calculateMCS's default (gurobi),
+        # so without gurobi the G matrix could not be built for any solver.
+        solutionDict = calculateMCS(model, MAX_LENGTH_MCS=maxLengthGPR, MAX_MCS=1e6, rxnSubset=list(treeGenes), solver=solver)
         for _, data in solutionDict.items():
             key = frozenset(data["solution"])
             [addToDict(gDict, key, reaction) for reaction in reactions]

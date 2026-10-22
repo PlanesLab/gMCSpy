@@ -324,6 +324,27 @@ class TestNutrient:
         assert {r.id: (r.bounds, r.gene_reaction_rule) for r in model.reactions} == before
 
 
+class TestNestedGPRSolver:
+    # KD-19: the nested MCS for mixed AND/OR GPRs ignored `solver` and always used gurobi.
+    @pytest.mark.parametrize("solver", ["scip", "cplex"])
+    def test_nested_mcs_uses_chosen_solver(self, solver, monkeypatch):
+        import gMCSpy.calculateGMCS as module
+
+        used = []
+        original = module.calculateMCS
+
+        def recording(*args, **kwargs):
+            used.append(kwargs.get("solver"))
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(module, "calculateMCS", recording)
+        model = build_model(TARGET_MODELS["complex"])
+        model.reactions.R2.gene_reaction_rule = "(g2 and g3) or g5"
+        found = set(gmcs_list(model, maxKOLength=3, solver=solver))
+        assert used and set(used) == {solver}
+        assert found == brute_force_gmcs(model, 3)
+
+
 class TestIsoformSeparator:
     # KD-15: split(sep)[0] cut at the first separator, merging A_B_1 and A_C_1 into A.
     def test_rsplit(self):
