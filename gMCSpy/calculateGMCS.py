@@ -61,7 +61,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
         - **forceLength:** If True, the solver will find MCS of length 1, 2, 3, ..., MAX_LENGTH_MCS. If False, the solver will find MCS of length MAX_LENGTH_MCS. Default value is True for cplex and false for gurobi.
         - **numWorkers:** Number of workers to be used for parallel processing. Default value is 0. The solvers cplex and gurobi already use parallel processing.      
         - **isoformSeparator:** If not None, the isoforms of the genes will merge into one gene. Default value is None.
-        - **enumeration:** Enumeration strategy. "classic" (default) re-solves the MILP once per gMCS found. "staged-lazy" enumerates one lazy branch-and-bound tree per gene-count order (Gurobi only), which is dramatically faster for deep enumerations (e.g. maxKOLength=4 on large models); it returns the identical gMCS set. Non-gurobi solvers fall back to "classic".
+        - **enumeration:** Enumeration strategy. "staged-lazy" (default, gurobi, cplex and scip) enumerates one lazy branch-and-bound tree per gene-count order, rejecting each gMCS with a no-good cut in a solver callback; it is complete and minimal by construction. "classic" re-solves the MILP once per solution pool.
     '''
     kwargs["solver"] = kwargs.get("solver", "gurobi")
     name = (
@@ -115,17 +115,16 @@ def calculateGeneMCS(cobraModel, **kwargs):
     timeLimit = kwargs.get("timeLimit", 1e4)
     solver = kwargs["solver"]
     user_defined_params = kwargs.get("params", None)
-    # Staged-lazy (complete by construction) is the default on gurobi; classic is opt-in.
-    enumeration = kwargs.get("enumeration", "staged-lazy" if solver == "gurobi" else "classic")
+    # Staged-lazy (complete by construction) is the default on every solver; classic is opt-in.
+    enumeration = kwargs.get("enumeration", "staged-lazy")
+    if enumeration not in ("staged-lazy", "classic"):
+        raise ValueError(f"enumeration must be 'staged-lazy' or 'classic', got {enumeration!r}")
 
-    if enumeration == "staged-lazy" and solver != "gurobi":
-        warnings.warn(
-            f"enumeration='staged-lazy' is implemented for gurobi only; falling back to "
-            f"the classic enumeration for solver '{solver}'."
-        )
-        enumeration = "classic"
-
-    if kwargs.get("forceLength") is None:
+    if enumeration == "staged-lazy":
+        # The stages bound the gene count themselves; forceLength's row (gene count <= 1,
+        # raised step by step by the classic loop) would make every later stage infeasible.
+        forceLength = False
+    elif kwargs.get("forceLength") is None:
         if solver == "gurobi":
             forceLength = False
         elif solver == "cplex":
@@ -332,6 +331,13 @@ def calculateGeneMCS(cobraModel, **kwargs):
         # keeps these; they are load-bearing there, see the Cutoff note above.)
         for classicPoolParam in ("Cutoff", "PoolSolutions", "PoolGap", "PoolSearchMode"):
             params.pop(classicPoolParam, None)
+    if enumeration == "staged-lazy" and solver == "cplex":
+        # Same reasoning for CPLEX: no cutoff or populate machinery, and only primal
+        # presolve reductions, because the callback's cuts are invisible to presolve.
+        for classicPoolParam in ("mip.tolerances.uppercutoff", "mip.limits.populate",
+                                 "mip.pool.relgap", "mip.pool.intensity"):
+            params.pop(classicPoolParam, None)
+        params["preprocessing.reduce"] = 1
 
     if verbose > 1:
         logging.info("Solver parameters: " + str(params))
@@ -353,6 +359,7 @@ def calculateGeneMCS(cobraModel, **kwargs):
         "MAX_SOLUTION_LENGTH": maxKOLength,
         "MAX_SOLUTIONS": maxNumberGMCS,
         "forceLength": forceLength,
+        "TIME_LIMIT": timeLimit,
     }
 
     # Solve the problem iteratively

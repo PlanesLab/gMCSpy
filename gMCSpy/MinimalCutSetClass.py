@@ -103,6 +103,158 @@ def _extractGurobiSolution(subVector, solutionVariableIndices, solutionVariableN
     return solutionIndex, geneSet, currentSolution, len(currentSolution) - 1
 
 
+def _stagedSolutionDict(stages):
+    """solutionDict in the shape iterateOverSolver returns, from per-stage gene sets."""
+    solutionDict = {}
+    for geneSet in (g for stage in stages for g in stage):
+        count = len(solutionDict)
+        solutionDict[count] = {"solution": geneSet, "order": f"order{len(geneSet)}_{count}"}
+    return solutionDict
+
+
+def _stagedLazyCplex(problem, problemInterpreted, solutionVariables, bounds, mergeSolutions,
+                     handler, minKOLength):
+    """Staged lazy enumeration with CPLEX: the algorithm of the Gurobi path, where a generic
+    callback in the candidate context records each candidate and rejects it with its
+    no-good cut. Callbacks may run on several threads, so recording is locked."""
+    import threading
+
+    import cplex
+    from cplex.callbacks import Context
+
+    logger = logging.getLogger(handler)
+    optModel = problemInterpreted[0]
+    indices, names = solutionVariables["indices"], solutionVariables["names"]
+    allIndices = list(range(optModel.variables.get_num()))
+    objective = problem.getObjective()
+    optModel.linear_constraints.add(
+        lin_expr=[cplex.SparsePair(ind=list(objective["variables"]),
+                                   val=[float(c) for c in objective["coefficients"]])],
+        senses="L", rhs=[float(minKOLength)], names=["stagedLazyUpper"])
+
+    class NoGoodCallback:
+        def __init__(self):
+            self.lock = threading.Lock()
+            self.seen = set()
+            self.stage = []
+
+        def invoke(self, context):
+            if not context.in_candidate() or not context.is_candidate_point():
+                return
+            values = np.array(context.get_candidate_point(indices))
+            _, geneSet, cut, cutRhs = _extractGurobiSolution(values, indices, names, allIndices, mergeSolutions)
+            with self.lock:
+                if geneSet not in self.seen:
+                    self.seen.add(geneSet)
+                    self.stage.append((geneSet, cut, cutRhs))
+            context.reject_candidate(constraints=[cplex.SparsePair(ind=list(cut), val=[1.0] * len(cut))],
+                                     senses="L", rhs=[float(cutRhs)])
+
+    callback = NoGoodCallback()
+    optModel.set_callback(callback, Context.id.candidate)
+    timeLimitStatuses = (optModel.solution.status.MIP_time_limit_feasible,
+                         optModel.solution.status.MIP_time_limit_infeasible)
+    stages, completed = [], True
+    for k in range(minKOLength, bounds["MAX_SOLUTION_LENGTH"] + 1):
+        optModel.linear_constraints.set_rhs("stagedLazyUpper", float(k))
+        callback.stage = []
+        started = time.time()
+        optModel.solve()
+        status = optModel.solution.get_status()
+        for _, cut, cutRhs in callback.stage:
+            optModel.linear_constraints.add(
+                lin_expr=[cplex.SparsePair(ind=list(cut), val=[1.0] * len(cut))], senses="L", rhs=[float(cutRhs)])
+        stages.append([geneSet for geneSet, _, _ in callback.stage])
+        logger.info(f"stagedLazyOrder{k}: {time.time() - started} count {len(callback.stage)} status {status}")
+        if status in timeLimitStatuses:
+            completed = False
+            logger.info(f"stagedLazy INCOMPLETE: order {k} hit the time limit")
+            break
+        if sum(len(s) for s in stages) >= bounds["MAX_SOLUTIONS"]:
+            break
+    return _stagedSolutionDict(stages), completed
+
+
+def _stagedLazyScip(problem, problemInterpreted, solutionVariables, bounds, mergeSolutions,
+                    handler, minKOLength):
+    """Staged lazy enumeration with SCIP: a constraint handler records each candidate and
+    rejects it with its no-good cut. It checks and enforces after every built-in handler
+    (indicator check priority is -6e6) and ignores solutions an earlier handler already
+    rejected (solinfeasible), so only true candidates are recorded. Dual reductions are
+    off because the cuts are invisible to presolve. Cuts added during a solve live in the
+    transformed problem, so each stage's cuts are re-added to the original problem."""
+    from pyscipopt import SCIP_RESULT, Conshdlr, quicksum
+
+    logger = logging.getLogger(handler)
+    model = problemInterpreted[0]
+    # SCIP's getVars() orders variables by type (binaries first), not by creation, so the
+    # problem index -> SCIP variable map goes through the names the interpreter assigned.
+    byName = {v.name: v for v in model.getVars()}
+    allVars = [byName[v["name"]] for _, v in sorted(problem.getVariables().items())]
+    indices, names = solutionVariables["indices"], solutionVariables["names"]
+    zpVars = [allVars[i] for i in indices]
+    allIndices = list(range(len(allVars)))
+    model.setParam("misc/allowstrongdualreds", False)
+    model.setParam("misc/allowweakdualreds", False)
+    if bounds.get("TIME_LIMIT"):
+        model.setParam("limits/time", bounds["TIME_LIMIT"])
+    objective = problem.getObjective()
+    cardinality = model.addCons(
+        quicksum(float(c) * allVars[i] for i, c in zip(objective["variables"], objective["coefficients"]))
+        <= minKOLength, name="stagedLazyUpper")
+
+    seen, stage = set(), []
+
+    def record(solution):
+        values = np.array([model.getSolVal(solution, v) for v in zpVars])
+        _, geneSet, cut, cutRhs = _extractGurobiSolution(values, indices, names, allIndices, mergeSolutions)
+        if geneSet not in seen:
+            seen.add(geneSet)
+            stage.append((geneSet, cut, cutRhs))
+        return cut, cutRhs
+
+    class NoGood(Conshdlr):
+        def conscheck(self, constraints, solution, checkintegrality, checklprows, printreason, completely):
+            record(solution)
+            return {"result": SCIP_RESULT.INFEASIBLE}
+
+        def _enforce(self):
+            cut, cutRhs = record(None)
+            self.model.addCons(quicksum(allVars[i] for i in cut) <= cutRhs, removable=False)
+            return {"result": SCIP_RESULT.CONSADDED}
+
+        def consenfolp(self, constraints, nusefulconss, solinfeasible):
+            return {"result": SCIP_RESULT.FEASIBLE} if solinfeasible else self._enforce()
+
+        def consenfops(self, constraints, nusefulconss, solinfeasible, objinfeasible):
+            return {"result": SCIP_RESULT.FEASIBLE} if solinfeasible or objinfeasible else self._enforce()
+
+        def conslock(self, constraint, locktype, nlockspos, nlocksneg):
+            pass
+
+    model.includeConshdlr(NoGood(), "gmcsNoGood", "gMCS no-good cuts", chckpriority=-9000000,
+                          enfopriority=-9000000, needscons=False)
+    stages, completed = [], True
+    for k in range(minKOLength, bounds["MAX_SOLUTION_LENGTH"] + 1):
+        model.chgRhs(cardinality, k)
+        stage.clear()
+        started = time.time()
+        model.optimize()
+        status = model.getStatus()
+        model.freeTransform()
+        for _, cut, cutRhs in stage:
+            model.addCons(quicksum(allVars[i] for i in cut) <= cutRhs)
+        stages.append([geneSet for geneSet, _, _ in stage])
+        logger.info(f"stagedLazyOrder{k}: {time.time() - started} count {len(stage)} status {status}")
+        if status == "timelimit":
+            completed = False
+            logger.info(f"stagedLazy INCOMPLETE: order {k} hit the time limit")
+            break
+        if sum(len(s) for s in stages) >= bounds["MAX_SOLUTIONS"]:
+            break
+    return _stagedSolutionDict(stages), completed
+
+
 class MinimalCutSetProblem:
     def __init__(self, forceLength=False, verbose=0, solver=None, B=1e-3, C=1e-3) -> None:
         self.forceLength = forceLength
@@ -467,8 +619,14 @@ class MinimalCutSetProblem:
             ``iterateOverSolver``. ``completed`` is ``False`` if any stage hit the solver
             time limit -- in that case the set is a lower bound, never a full enumeration.
         """
+        if solver == "cplex":
+            return _stagedLazyCplex(problem, problemInterpreted, solutionVariables, bounds,
+                                    mergeSolutions, handler, minKOLength)
+        if solver == "scip":
+            return _stagedLazyScip(problem, problemInterpreted, solutionVariables, bounds,
+                                   mergeSolutions, handler, minKOLength)
         if solver != "gurobi":
-            raise ValueError("iterateOverSolverStagedLazy is implemented for gurobi only")
+            raise ValueError(f"iterateOverSolverStagedLazy: unsupported solver {solver!r}")
 
         logger = logging.getLogger(handler)
         optModel, interface = problemInterpreted[0], problemInterpreted[1]

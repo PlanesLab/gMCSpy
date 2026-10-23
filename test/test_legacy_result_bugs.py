@@ -20,8 +20,10 @@ solvers = ["cplex", "gurobi"]
 enumerations = [
     ("gurobi staged-lazy", dict(solver="gurobi")),
     ("gurobi classic", dict(solver="gurobi", enumeration="classic")),
-    ("cplex", dict(solver="cplex")),
-    ("scip", dict(solver="scip")),
+    ("cplex staged-lazy", dict(solver="cplex")),
+    ("cplex classic", dict(solver="cplex", enumeration="classic")),
+    ("scip staged-lazy", dict(solver="scip")),
+    ("scip classic", dict(solver="scip", enumeration="classic")),
 ]
 
 
