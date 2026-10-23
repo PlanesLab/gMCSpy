@@ -1,3 +1,5 @@
+import warnings
+
 from .Utilities import setSolver
 from .ProblemInterpreters import cplexProblemInterpreter
 from .ProblemInterpreters import gurobiProblemInterpreter
@@ -212,14 +214,16 @@ class OptimizationProblem:
         
         self.parameters = parameters
                  
+        # A parameter that cannot be set is reported with warnings.warn; it used to build a
+        # Warning object without emitting it, so invalid parameters were dropped silently.
         if self.solver == "gurobi":
             env = self.interface.Env(empty=True)
             if parameters:
                 for name, value in parameters.items():
                     try:
                         env.setParam(name, value)
-                    except:
-                        Warning(f"Parameter {name} could not be set")
+                    except Exception as error:
+                        warnings.warn(f"Gurobi parameter {name} could not be set: {error}")
 
             return [gurobiProblemInterpreter(interface=self.interface, env=env, problemDict=self, verbose=verbose), interface]
         elif self.solver == "cplex":
@@ -227,10 +231,12 @@ class OptimizationProblem:
             if parameters:
                 for name, value in parameters.items():
                     try:
-                        code_string = f"optModel.parameters.{name}.set({value})"
-                        exec(code_string)
-                    except:
-                        Warning(f"Parameter {name} could not be set")
+                        target = optModel.parameters
+                        for part in name.split("."):
+                            target = getattr(target, part)
+                        target.set(value)
+                    except Exception as error:
+                        warnings.warn(f"CPLEX parameter {name} could not be set: {error}")
             return [cplexProblemInterpreter(interface=interface, optModel=optModel, problemDict=self, verbose=verbose), interface]
         elif self.solver == "scip":
             return [scipProblemInterpreter(interface=interface, problemDict=self, verbose=verbose), interface]

@@ -391,6 +391,28 @@ class TestNumericalScaling:
         assert len(w) == 1 and w[0]["lb"] == w[0]["ub"] == 1
 
 
+class TestSolverParameters:
+    # KD-21: parameters that could not be set were dropped silently (Warning(...) was
+    # constructed but never emitted); the CPLEX path also built code strings for exec.
+    @pytest.mark.parametrize("solver,good,bad", [
+        ("cplex", {"mip.pool.intensity": 4}, {"mip.pool.notAParameter": 1}),
+        ("gurobi", {"MIPFocus": 1}, {"NotAParameter": 1}),
+    ])
+    def test_parameters_applied_or_reported(self, solver, good, bad):
+        from gMCSpy.OptimizationProblem import OptimizationProblem
+
+        problem = OptimizationProblem()
+        problem.addVariable(0, 0, 1, vtype="binary")
+        problem.addObjective([0], [1], "minimize")
+        problem.setSolver(solver)
+        with pytest.warns(UserWarning, match="could not be set"):
+            optModel, _ = problem.interpretProblem(parameters={**good, **bad})
+        if solver == "cplex":
+            assert optModel.parameters.mip.pool.intensity.get() == 4
+        else:
+            assert optModel.Params.MIPFocus == 1
+
+
 class TestIsoformSeparator:
     # KD-15: split(sep)[0] cut at the first separator, merging A_B_1 and A_C_1 into A.
     def test_rsplit(self):
