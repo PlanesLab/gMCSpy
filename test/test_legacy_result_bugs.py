@@ -399,6 +399,7 @@ class TestSolverParameters:
     @pytest.mark.parametrize("solver,good,bad", [
         ("cplex", {"mip.pool.intensity": 4}, {"mip.pool.notAParameter": 1}),
         ("gurobi", {"MIPFocus": 1}, {"NotAParameter": 1}),
+        ("scip", {"lp/scaling": 2}, {"not/a/parameter": 1}),
     ])
     def test_parameters_applied_or_reported(self, solver, good, bad):
         from gMCSpy.OptimizationProblem import OptimizationProblem
@@ -411,8 +412,10 @@ class TestSolverParameters:
             optModel, _ = problem.interpretProblem(parameters={**good, **bad})
         if solver == "cplex":
             assert optModel.parameters.mip.pool.intensity.get() == 4
-        else:
+        elif solver == "gurobi":
             assert optModel.Params.MIPFocus == 1
+        else:
+            assert optModel.getParam("lp/scaling") == 2
 
 
 class TestIsoformSeparator:

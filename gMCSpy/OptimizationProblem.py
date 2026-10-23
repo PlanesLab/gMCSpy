@@ -239,7 +239,15 @@ class OptimizationProblem:
                         warnings.warn(f"CPLEX parameter {name} could not be set: {error}")
             return [cplexProblemInterpreter(interface=interface, optModel=optModel, problemDict=self, verbose=verbose), interface]
         elif self.solver == "scip":
-            return [scipProblemInterpreter(interface=interface, problemDict=self, verbose=verbose), interface]
+            optModel = scipProblemInterpreter(interface=interface, problemDict=self, verbose=verbose)
+            # SCIP parameters used to be ignored entirely.
+            if parameters:
+                for name, value in parameters.items():
+                    try:
+                        optModel.setParam(name, value)
+                    except Exception as error:
+                        warnings.warn(f"SCIP parameter {name} could not be set: {error}")
+            return [optModel, interface]
     
     def setModelName(self, name):
         self.modelName = name
