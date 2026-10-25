@@ -1,5 +1,30 @@
 import numpy as np
+import scipy.linalg
 from cobra.util.array import create_stoichiometric_matrix
+
+DEPENDENT = 1e-9  # a balance this close (relative) to the span of the earlier ones
+
+
+def independentBalances(matrixS):
+    """Rows of S (metabolite balances) that are not linear combinations of earlier rows.
+
+    Conserved moieties (y with y^T S = 0) make some balances dependent: S r = 0 holds for
+    exactly the same fluxes without them, so the gMCS do not change. Kept, they give the free
+    dual u directions that change nothing exact, along which a certificate drifted to
+    |u| ~ 1e15 and float64 cancellation accepted non-cuts. Householder QR of S^T: |R_jj| is
+    the distance of balance j from the earlier ones (models show kept >= 1e-2, dependent
+    <= 1e-13, relative); a row in between is kept, which is always safe. Same rule as
+    central-framework's independent_balances.
+    """
+    dense = matrixS.toarray().T
+    n_reactions, n_metabolites = dense.shape
+    if n_metabolites > n_reactions:  # beyond n rows the diagonal says nothing: pivot
+        R, order = scipy.linalg.qr(dense, mode="r", pivoting=True, check_finite=False)
+        d = np.abs(np.diag(R))
+        return np.sort(order[: int((d > DEPENDENT * d.max()).sum())])
+    R = scipy.linalg.qr(dense, mode="r", check_finite=False)[0]
+    d = np.abs(np.diag(R))
+    return np.flatnonzero(d > DEPENDENT * d.max())
 
 
 def scaleModel(cobraModel, passes=4):

@@ -2,6 +2,8 @@ import numpy as np
 from cobra.util.array import create_stoichiometric_matrix
 from scipy.sparse import eye, hstack
 
+from .Scaling import independentBalances
+
 from .ProblemDefinitions import cobra
 from .ProblemDefinitions import List
 
@@ -273,6 +275,8 @@ class MinimalCutSetProblem:
             raise Exception("No companion matrix provided, no companion type provided, to build K use companionType='K', to use G provide companionMatrix")
 
         matrixS = create_stoichiometric_matrix(cobraModel, array_type="lil")
+        # only the independent balances: see Scaling.independentBalances
+        matrixS = matrixS.tocsr()[independentBalances(matrixS), :].tolil()
 
         [_, reactions] = matrixS.shape
 
